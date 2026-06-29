@@ -8,30 +8,104 @@ const API = import.meta.env.VITE_API_URL;
 export default function Admin() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [courses, setCourses]     = useState([]);
+  const [activeCourse, setActiveCourse] = useState('');   // course _id currently being managed
   const [episodes, setEpisodes]   = useState([]);
   const [selected, setSelected]   = useState(null);
   const [uploading, setUploading] = useState(false);
   const [creating, setCreating]   = useState(false);
   const [newEp, setNewEp]         = useState({ episodeNumber:'', title:'', description:'', phase:'Phase 1 — Python Basics', youtubeUrl:'', duration:'' });
   const [fileData, setFileData]   = useState({ label:'', fileType:'pdf', file: null });
+  const [newCourse, setNewCourse] = useState({ title:'', description:'' });
+  const [creatingCourse, setCreatingCourse] = useState(false);
+  const [newPhase, setNewPhase]   = useState('');
   const [msg, setMsg]             = useState('');
 
+  // the course object currently selected (for reading its phases)
+  const activeCourseObj = courses.find(c => c._id === activeCourse);
+
   useEffect(() => {
-    if (!user || user.role !== 'admin') { navigate('/episodes'); return; }
-    fetchEpisodes();
+    if (!user || user.role !== 'admin') { navigate('/courses'); return; }
+    fetchCourses();
   }, [user]);
 
+  useEffect(() => {
+    if (activeCourse) fetchEpisodes();
+    else setEpisodes([]);
+    setSelected(null);
+  }, [activeCourse]);
+
+  // When the selected course changes, default the new-episode phase
+  // to that course's first phase (or blank if it has none yet).
+  useEffect(() => {
+    const c = courses.find(c => c._id === activeCourse);
+    const firstPhase = c?.phases?.[0] || '';
+    setNewEp(prev => ({ ...prev, phase: firstPhase }));
+  }, [activeCourse, courses]);
+
+  // Add a phase to the active course
+  const addPhase = async () => {
+    const label = newPhase.trim();
+    if (!label || !activeCourseObj) return;
+    if (activeCourseObj.phases?.includes(label)) {
+      setMsg('That phase already exists in this course');
+      return;
+    }
+    const updated = [...(activeCourseObj.phases || []), label];
+    await axios.put(`${API}/courses/${activeCourse}`, { phases: updated });
+    setNewPhase('');
+    await fetchCourses();
+  };
+
+  // Remove a phase from the active course
+  const removePhase = async (label) => {
+    if (!activeCourseObj) return;
+    const updated = (activeCourseObj.phases || []).filter(p => p !== label);
+    await axios.put(`${API}/courses/${activeCourse}`, { phases: updated });
+    await fetchCourses();
+  };
+
+  const fetchCourses = () => {
+    axios.get(`${API}/courses/all`).then(r => {
+      setCourses(r.data);
+      // default to the first course if none selected
+      setActiveCourse(prev => prev || (r.data[0]?._id || ''));
+    }).catch(console.error);
+  };
+
   const fetchEpisodes = () => {
-    axios.get(`${API}/episodes/all`).then(r => setEpisodes(r.data)).catch(console.error);
+    axios.get(`${API}/episodes/all`, { params: { course: activeCourse } })
+      .then(r => setEpisodes(r.data)).catch(console.error);
+  };
+
+  const createCourse = async (e) => {
+    e.preventDefault();
+    setCreatingCourse(true);
+    try {
+      const r = await axios.post(`${API}/courses`, newCourse);
+      setMsg('Course created ✓ — remember to Publish it');
+      setNewCourse({ title:'', description:'' });
+      await fetchCourses();
+      setActiveCourse(r.data._id);
+    } catch (err) {
+      setMsg(err.response?.data?.message || 'Error creating course');
+    }
+    setCreatingCourse(false);
+  };
+
+  const togglePublishCourse = async (course) => {
+    await axios.put(`${API}/courses/${course._id}`, { isPublished: !course.isPublished });
+    fetchCourses();
   };
 
   const createEpisode = async (e) => {
     e.preventDefault();
+    if (!activeCourse) { setMsg('Select or create a course first'); return; }
     setCreating(true);
     try {
-      await axios.post(`${API}/episodes`, newEp);
+      await axios.post(`${API}/episodes`, { ...newEp, course: activeCourse });
       setMsg('Episode created ✓');
-      setNewEp({ episodeNumber:'', title:'', description:'', phase:'Phase 1 — Python Basics', youtubeUrl:'', duration:'' });
+      setNewEp({ episodeNumber:'', title:'', description:'', phase: activeCourseObj?.phases?.[0] || '', youtubeUrl:'', duration:'' });
       fetchEpisodes();
     } catch (err) {
       setMsg(err.response?.data?.message || 'Error creating episode');
@@ -53,7 +127,7 @@ export default function Admin() {
       });
       setMsg('File uploaded ✓');
       setFileData({ label:'', fileType:'pdf', file: null });
-      const updated = await axios.get(`${API}/episodes/all`);
+      const updated = await axios.get(`${API}/episodes/all`, { params: { course: activeCourse } });
       setEpisodes(updated.data);
       const updatedEp = updated.data.find(ep => ep._id === selected._id);
       if (updatedEp) setSelected(updatedEp);
@@ -66,7 +140,7 @@ export default function Admin() {
   const deleteFile = async (fileId) => {
     if (!confirm('Delete this file?')) return;
     await axios.delete(`${API}/episodes/${selected._id}/files/${fileId}`);
-    const updated = await axios.get(`${API}/episodes/all`);
+    const updated = await axios.get(`${API}/episodes/all`, { params: { course: activeCourse } });
     setEpisodes(updated.data);
     const updatedEp = updated.data.find(ep => ep._id === selected._id);
     if (updatedEp) setSelected(updatedEp);
@@ -83,7 +157,11 @@ export default function Admin() {
       <div style={s.content}>
         <div style={s.header}>
           <h1 style={s.title}>Admin Panel</h1>
-          <button style={s.backBtn} onClick={() => navigate('/episodes')}>← Back to portal</button>
+          <div style={{ display:'flex', gap:'10px' }}>
+            <button style={s.backBtn} onClick={() => navigate('/admin/roadmaps')}>🗺 Roadmaps</button>
+            <button style={s.backBtn} onClick={() => navigate('/admin/analytics')}>📊 Analytics</button>
+            <button style={s.backBtn} onClick={() => navigate('/courses')}>← Back to portal</button>
+          </div>
         </div>
 
         {msg && (
@@ -93,11 +171,88 @@ export default function Admin() {
           </div>
         )}
 
+        {/* COURSE MANAGEMENT */}
+        <div style={s.card}>
+          <h2 style={s.cardTitle}>Courses</h2>
+          <div style={{ display:'flex', gap:'10px', flexWrap:'wrap', marginBottom:'16px' }}>
+            {courses.map(c => (
+              <div key={c._id}
+                onClick={() => setActiveCourse(c._id)}
+                style={{
+                  ...s.coursePill,
+                  background: activeCourse === c._id ? '#1e3a5f' : '#0a0f1e',
+                  borderColor: activeCourse === c._id ? '#4A9EFF' : '#1e3a5f',
+                }}>
+                <span style={{ color: activeCourse === c._id ? '#4A9EFF' : '#ccc', fontSize:'13px', fontWeight:600 }}>
+                  {c.title}
+                </span>
+                <span
+                  onClick={(e) => { e.stopPropagation(); togglePublishCourse(c); }}
+                  style={{ ...s.pubBadge, marginLeft:'8px', background: c.isPublished ? '#0F2318' : '#2a1a00', color: c.isPublished ? '#4CAF7D' : '#FF9F45' }}>
+                  {c.isPublished ? 'Live' : 'Draft'}
+                </span>
+              </div>
+            ))}
+            {courses.length === 0 && <p style={{ color:'#4A6A8A', fontSize:'13px' }}>No courses yet. Create one below.</p>}
+          </div>
+
+          <form onSubmit={createCourse} style={{ display:'flex', gap:'10px', flexWrap:'wrap', alignItems:'flex-end' }}>
+            <div style={{ ...s.field, flex:'1 1 200px', marginBottom:0 }}>
+              <label style={s.label}>New course title</label>
+              <input style={s.input} placeholder="e.g. MERN Stack" value={newCourse.title}
+                onChange={e => setNewCourse({ ...newCourse, title: e.target.value })} required />
+            </div>
+            <div style={{ ...s.field, flex:'2 1 280px', marginBottom:0 }}>
+              <label style={s.label}>Description</label>
+              <input style={s.input} placeholder="Short description" value={newCourse.description}
+                onChange={e => setNewCourse({ ...newCourse, description: e.target.value })} />
+            </div>
+            <button style={{ ...s.btn, width:'auto', padding:'8px 18px' }} type="submit" disabled={creatingCourse}>
+              {creatingCourse ? 'Creating...' : '+ Course'}
+            </button>
+          </form>
+
+          {/* PHASES of the selected course */}
+          {activeCourseObj && (
+            <div style={{ marginTop:'20px', borderTop:'1px solid #1e3a5f', paddingTop:'16px' }}>
+              <label style={s.label}>Phases / Modules for "{activeCourseObj.title}"</label>
+              <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', margin:'10px 0' }}>
+                {(activeCourseObj.phases || []).map(p => (
+                  <span key={p} style={s.phaseChip}>
+                    {p}
+                    <span style={s.phaseX} onClick={() => removePhase(p)} title="Remove phase">✕</span>
+                  </span>
+                ))}
+                {(!activeCourseObj.phases || activeCourseObj.phases.length === 0) && (
+                  <span style={{ color:'#FF9F45', fontSize:'13px' }}>
+                    No phases yet — add at least one before creating episodes.
+                  </span>
+                )}
+              </div>
+              <div style={{ display:'flex', gap:'8px', maxWidth:'480px' }}>
+                <input
+                  style={{ ...s.input, marginBottom:0 }}
+                  placeholder="e.g. Phase 1 — Fundamentals"
+                  value={newPhase}
+                  onChange={e => setNewPhase(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addPhase(); } }}
+                />
+                <button type="button" style={{ ...s.btn, width:'auto', padding:'8px 16px' }} onClick={addPhase}>
+                  + Phase
+                </button>
+              </div>
+              <p style={{ color:'#4A6A8A', fontSize:'12px', marginTop:'8px' }}>
+                Removing a phase here won't delete episodes already using it; reassign those episodes' phase if needed.
+              </p>
+            </div>
+          )}
+        </div>
+
         <div style={s.grid}>
           {/* LEFT */}
           <div>
             <div style={s.card}>
-              <h2 style={s.cardTitle}>Create Episode</h2>
+              <h2 style={s.cardTitle}>Create Episode {courses.find(c=>c._id===activeCourse) ? `— ${courses.find(c=>c._id===activeCourse).title}` : ''}</h2>
               <form onSubmit={createEpisode}>
                 {[
                   ['Episode #',   'episodeNumber', 'number', '1'],
@@ -115,10 +270,15 @@ export default function Admin() {
                 ))}
                 <div style={s.field}>
                   <label style={s.label}>Phase</label>
-                  <select style={s.input} value={newEp.phase} onChange={e => setNewEp({...newEp, phase: e.target.value})}>
-                    {['Phase 1 — Python Basics','Phase 2 — Intermediate Python','Phase 3 — Dev Tools','Phase 4 — Data Analysis','Phase 5 — Visualization','Phase 6 — Machine Learning','Phase 7 — Deep Learning & AI','Phase 8 — Production & Career'].map(p =>
-                      <option key={p}>{p}</option>)}
-                  </select>
+                  {activeCourseObj?.phases?.length > 0 ? (
+                    <select style={s.input} value={newEp.phase} onChange={e => setNewEp({...newEp, phase: e.target.value})}>
+                      {activeCourseObj.phases.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  ) : (
+                    <p style={{ color:'#FF9F45', fontSize:'13px', padding:'8px 0' }}>
+                      Add a phase above before creating episodes for this course.
+                    </p>
+                  )}
                 </div>
                 <div style={s.field}>
                   <label style={s.label}>Description</label>
@@ -126,7 +286,7 @@ export default function Admin() {
                     value={newEp.description}
                     onChange={e => setNewEp({...newEp, description: e.target.value})} />
                 </div>
-                <button style={s.btn} type="submit" disabled={creating}>
+                <button style={s.btn} type="submit" disabled={creating || !(activeCourseObj?.phases?.length > 0)}>
                   {creating ? 'Creating...' : 'Create Episode'}
                 </button>
               </form>
@@ -246,6 +406,12 @@ const s = {
   epTitle:   { color:'#ccc', fontSize:'13px' },
   epActions: { display:'flex', gap:'8px', alignItems:'center' },
   pubBadge:  { fontSize:'11px', padding:'2px 8px', borderRadius:'20px', cursor:'pointer', fontWeight:'600' },
+  coursePill:{ display:'flex', alignItems:'center', padding:'8px 12px', borderRadius:'8px', border:'1px solid', cursor:'pointer' },
+  phaseChip: { display:'inline-flex', alignItems:'center', gap:'8px', background:'#0a0f1e', border:'1px solid #1e3a5f', color:'#cbd5e1', fontSize:'13px', padding:'6px 12px', borderRadius:'20px' },
+  phaseX:    { color:'#FF7070', cursor:'pointer', fontSize:'12px', fontWeight:700 },
+  smallBtn:  { background:'#1e3a5f', color:'#4A9EFF', border:'none', padding:'8px 14px', borderRadius:'6px', cursor:'pointer', fontSize:'13px', fontWeight:600 },
+  shareBox:  { marginTop:'10px', background:'#0a0f1e', border:'1px solid #1e3a5f', borderRadius:'6px', padding:'8px 12px', color:'#8899AA', fontSize:'13px' },
+  code:      { color:'#4A9EFF', fontFamily:'monospace', fontSize:'13px' },
   filesBadge:{ color:'#4A6A8A', fontSize:'11px' },
   uploadForm:{ borderBottom:'1px solid #1e3a5f', paddingBottom:'20px', marginBottom:'20px' },
   fileRow:   { display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 12px', background:'#0a0f1e', borderRadius:'8px', marginBottom:'6px' },

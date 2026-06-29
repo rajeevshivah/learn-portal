@@ -26,19 +26,21 @@ export default function EpisodeDetail() {
   }, [id]);
 
 const handleDownload = async (file) => {
+  const filename = `${(file.label || 'download').replace(/[^a-zA-Z0-9-_ ]/g, '').replace(/\s+/g, '-')}.${file.fileType || 'pdf'}`;
   try {
     const response = await fetch(file.url);
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${file.label}.${file.fileType}`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
   } catch {
-    window.open(file.url, '_blank');
+    // fallback: open raw file in a new tab (still downloads, just plainer name)
+    window.open(file.url, '_blank', 'noopener,noreferrer');
   }
 };
 

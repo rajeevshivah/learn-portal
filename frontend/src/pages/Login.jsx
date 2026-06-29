@@ -9,7 +9,7 @@ export default function Login() {
   const handleSuccess = async (credentialResponse) => {
     try {
       const user = await loginWithGoogle(credentialResponse.credential);
-      navigate(user.role === 'admin' ? '/admin' : '/episodes');
+      navigate(user.role === 'admin' ? '/admin' : '/courses');
     } catch (err) {
       alert('Login failed. Please try again.');
     }

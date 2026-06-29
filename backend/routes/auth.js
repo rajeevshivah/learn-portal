@@ -76,16 +76,4 @@ router.get('/me', protect, async (req, res) => {
   });
 });
 
-
-// Temporary - make yourself admin - DELETE after use
-router.get('/make-admin/:email', async (req, res) => {
-  const user = await User.findOneAndUpdate(
-    { email: req.params.email },
-    { role: 'admin' },
-    { new: true }
-  );
-  if (!user) return res.status(404).json({ message: 'User not found' });
-  res.json({ message: 'Done', role: user.role });
-});
-
 module.exports = router;

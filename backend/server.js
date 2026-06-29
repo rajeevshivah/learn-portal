@@ -17,7 +17,10 @@ app.use(express.urlencoded({ extended: true }));
 
 // Routes
 app.use('/api/auth',     require('./routes/auth'));
+app.use('/api/courses',  require('./routes/courses'));
+app.use('/api/roadmaps', require('./routes/roadmaps'));
 app.use('/api/episodes', require('./routes/episodes'));
+app.use('/api/analytics', require('./routes/analytics'));
 
 // Health check
 app.get('/', (req, res) => res.json({ message: 'Learn Portal API running' }));

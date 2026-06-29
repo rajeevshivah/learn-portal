@@ -9,10 +9,17 @@ const fileSchema = new mongoose.Schema({
 }, { _id: true });
 
 const episodeSchema = new mongoose.Schema({
+  // NEW: every episode belongs to exactly one course
+  course: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Course',
+    required: true,
+  },
   episodeNumber: {
     type: Number,
     required: true,
-    unique: true,
+    // NOTE: no longer globally unique — uniqueness is per-course via the
+    // compound index defined below.
   },
   title: {
     type: String,
@@ -46,5 +53,8 @@ const episodeSchema = new mongoose.Schema({
   },
   tags: [String],   // e.g. ["python", "basics", "variables"]
 }, { timestamps: true });
+
+// episodeNumber must be unique WITHIN a course, not globally
+episodeSchema.index({ course: 1, episodeNumber: 1 }, { unique: true });
 
 module.exports = mongoose.model('Episode', episodeSchema);

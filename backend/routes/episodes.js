@@ -1,18 +1,28 @@
 const express  = require('express');
 const router   = express.Router();
 const Episode  = require('../models/Episode');
+const Course   = require('../models/Course');
 const { cloudinary, upload } = require('../config/cloudinary');
 const { protect, adminOnly } = require('../middleware/auth');
 
-// ADMIN ONLY — all episodes including unpublished
+// ADMIN ONLY — all episodes including unpublished.
+// Optional ?course=<courseId> filter.
 router.get('/all', protect, adminOnly, async (req, res) => {
-  const episodes = await Episode.find().sort({ episodeNumber: 1 });
+  const filter = req.query.course ? { course: req.query.course } : {};
+  const episodes = await Episode.find(filter)
+    .populate('course', 'title slug')
+    .sort({ episodeNumber: 1 });
   res.json(episodes);
 });
 
-// GET /api/episodes — published only
+// GET /api/episodes — published only.
+// Requires ?course=<courseId> so episodes are always course-scoped.
 router.get('/', protect, async (req, res) => {
-  const episodes = await Episode.find({ isPublished: true })
+  const { course } = req.query;
+  if (!course) {
+    return res.status(400).json({ message: 'course query param is required' });
+  }
+  const episodes = await Episode.find({ course, isPublished: true })
     .select('-files.publicId')
     .sort({ episodeNumber: 1 });
   res.json(episodes);
@@ -20,7 +30,9 @@ router.get('/', protect, async (req, res) => {
 
 // GET /api/episodes/:id
 router.get('/:id', protect, async (req, res) => {
-  const episode = await Episode.findById(req.params.id).select('-files.publicId');
+  const episode = await Episode.findById(req.params.id)
+    .select('-files.publicId')
+    .populate('course', 'title slug');
   if (!episode || !episode.isPublished) {
     return res.status(404).json({ message: 'Episode not found' });
   }
@@ -28,15 +40,24 @@ router.get('/:id', protect, async (req, res) => {
   res.json(episode);
 });
 
-// POST /api/episodes — create
+// POST /api/episodes — create (must belong to a course)
 router.post('/', protect, adminOnly, async (req, res) => {
-  const { episodeNumber, title, description, phase, youtubeUrl, duration, tags } = req.body;
-  const exists = await Episode.findOne({ episodeNumber });
-  if (exists) return res.status(400).json({ message: `Episode ${episodeNumber} already exists` });
+  const { course, episodeNumber, title, description, phase, youtubeUrl, duration, tags } = req.body;
+
+  if (!course) return res.status(400).json({ message: 'course is required' });
+  const courseDoc = await Course.findById(course);
+  if (!courseDoc) return res.status(400).json({ message: 'Course not found' });
+
+  const exists = await Episode.findOne({ course, episodeNumber });
+  if (exists) {
+    return res.status(400).json({ message: `Episode ${episodeNumber} already exists in this course` });
+  }
+
   const episode = await Episode.create({
-    episodeNumber, title, description, phase, youtubeUrl, duration,
+    course, episodeNumber, title, description, phase, youtubeUrl, duration,
     tags: tags ? tags.split(',').map(t => t.trim()) : [],
   });
+
   res.status(201).json(episode);
 });
 
