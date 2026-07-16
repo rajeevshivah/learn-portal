@@ -1,48 +1,78 @@
 const express  = require('express');
 const router   = express.Router();
+const asyncHandler = require('express-async-handler');
 const Episode  = require('../models/Episode');
 const Course   = require('../models/Course');
 const { cloudinary, upload } = require('../config/cloudinary');
 const { protect, adminOnly } = require('../middleware/auth');
+const { hasCourseAccess } = require('../middleware/access');
 
-// ADMIN ONLY — all episodes including unpublished.
-// Optional ?course=<courseId> filter.
-router.get('/all', protect, adminOnly, async (req, res) => {
+// ── ADMIN: all episodes (optionally ?course=) ────────────
+router.get('/all', protect, adminOnly, asyncHandler(async (req, res) => {
   const filter = req.query.course ? { course: req.query.course } : {};
   const episodes = await Episode.find(filter)
     .populate('course', 'title slug')
     .sort({ episodeNumber: 1 });
   res.json(episodes);
-});
+}));
 
-// GET /api/episodes — published only.
-// Requires ?course=<courseId> so episodes are always course-scoped.
-router.get('/', protect, async (req, res) => {
+// ── Published episodes for a course, with access-aware locking ──
+// Locked episodes are still listed (so students see what they'd unlock)
+// but youtubeUrl and files are stripped.
+router.get('/', protect, asyncHandler(async (req, res) => {
   const { course } = req.query;
-  if (!course) {
-    return res.status(400).json({ message: 'course query param is required' });
-  }
+  if (!course) return res.status(400).json({ message: 'course query param is required' });
+
+  const courseDoc = await Course.findById(course);
+  if (!courseDoc) return res.status(404).json({ message: 'Course not found' });
+
+  const access = await hasCourseAccess(req.user, courseDoc);
+
   const episodes = await Episode.find({ course, isPublished: true })
     .select('-files.publicId')
     .sort({ episodeNumber: 1 });
-  res.json(episodes);
-});
 
-// GET /api/episodes/:id
-router.get('/:id', protect, async (req, res) => {
+  res.json(episodes.map(ep => {
+    const unlocked = access || ep.isFreePreview;
+    const obj = ep.toObject();
+    if (!unlocked) {
+      obj.youtubeUrl = '';
+      obj.files = [];
+    }
+    obj.locked = !unlocked;
+    return obj;
+  }));
+}));
+
+// ── Single episode (access-enforced) ─────────────────────
+router.get('/:id', protect, asyncHandler(async (req, res) => {
   const episode = await Episode.findById(req.params.id)
     .select('-files.publicId')
-    .populate('course', 'title slug');
-  if (!episode || !episode.isPublished) {
+    .populate('course', 'title slug isPaid price');
+  if (!episode) return res.status(404).json({ message: 'Episode not found' });
+
+  const isAdmin = req.user.role === 'admin';
+  if (!episode.isPublished && !isAdmin) {
     return res.status(404).json({ message: 'Episode not found' });
   }
-  await episode.updateOne({ $inc: { downloadCount: 1 } });
-  res.json(episode);
-});
 
-// POST /api/episodes — create (must belong to a course)
-router.post('/', protect, adminOnly, async (req, res) => {
-  const { course, episodeNumber, title, description, phase, youtubeUrl, duration, tags } = req.body;
+  const access = await hasCourseAccess(req.user, episode.course);
+  if (!access && !episode.isFreePreview) {
+    return res.status(403).json({
+      message: 'Purchase this course to watch this episode',
+      requiresPayment: true,
+      courseSlug: episode.course.slug,
+    });
+  }
+
+  await episode.updateOne({ $inc: { viewCount: 1 } });
+  res.json(episode);
+}));
+
+// ── ADMIN: create episode ────────────────────────────────
+router.post('/', protect, adminOnly, asyncHandler(async (req, res) => {
+  const { course, episodeNumber, title, description, phase,
+          youtubeUrl, duration, tags, isFreePreview } = req.body;
 
   if (!course) return res.status(400).json({ message: 'course is required' });
   const courseDoc = await Course.findById(course);
@@ -55,25 +85,28 @@ router.post('/', protect, adminOnly, async (req, res) => {
 
   const episode = await Episode.create({
     course, episodeNumber, title, description, phase, youtubeUrl, duration,
+    isFreePreview: Boolean(isFreePreview),
     tags: tags ? tags.split(',').map(t => t.trim()) : [],
   });
-
   res.status(201).json(episode);
-});
+}));
 
-// PUT /api/episodes/:id — update
-router.put('/:id', protect, adminOnly, async (req, res) => {
+// ── ADMIN: update episode ────────────────────────────────
+router.put('/:id', protect, adminOnly, asyncHandler(async (req, res) => {
   const episode = await Episode.findById(req.params.id);
   if (!episode) return res.status(404).json({ message: 'Episode not found' });
-  const fields = ['title', 'description', 'phase', 'youtubeUrl', 'duration', 'isPublished'];
+  const fields = ['title', 'description', 'phase', 'youtubeUrl', 'duration',
+                  'isPublished', 'isFreePreview', 'episodeNumber'];
   fields.forEach(f => { if (req.body[f] !== undefined) episode[f] = req.body[f]; });
-  if (req.body.tags) episode.tags = req.body.tags.split(',').map(t => t.trim());
+  if (req.body.tags !== undefined) {
+    episode.tags = String(req.body.tags).split(',').map(t => t.trim()).filter(Boolean);
+  }
   await episode.save();
   res.json(episode);
-});
+}));
 
-// POST /api/episodes/:episodeId/files — upload file
-router.post('/:episodeId/files', protect, adminOnly, upload.single('file'), async (req, res) => {
+// ── ADMIN: upload file to episode ────────────────────────
+router.post('/:episodeId/files', protect, adminOnly, upload.single('file'), asyncHandler(async (req, res) => {
   const episode = await Episode.findById(req.params.episodeId);
   if (!episode) return res.status(404).json({ message: 'Episode not found' });
   if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
@@ -87,10 +120,10 @@ router.post('/:episodeId/files', protect, adminOnly, upload.single('file'), asyn
   });
   await episode.save();
   res.status(201).json({ message: 'File uploaded', files: episode.files });
-});
+}));
 
-// DELETE /api/episodes/:episodeId/files/:fileId
-router.delete('/:episodeId/files/:fileId', protect, adminOnly, async (req, res) => {
+// ── ADMIN: delete file ───────────────────────────────────
+router.delete('/:episodeId/files/:fileId', protect, adminOnly, asyncHandler(async (req, res) => {
   const episode = await Episode.findById(req.params.episodeId);
   if (!episode) return res.status(404).json({ message: 'Episode not found' });
   const file = episode.files.id(req.params.fileId);
@@ -99,10 +132,10 @@ router.delete('/:episodeId/files/:fileId', protect, adminOnly, async (req, res) 
   episode.files.pull(req.params.fileId);
   await episode.save();
   res.json({ message: 'File deleted' });
-});
+}));
 
-// DELETE /api/episodes/:id
-router.delete('/:id', protect, adminOnly, async (req, res) => {
+// ── ADMIN: delete episode ────────────────────────────────
+router.delete('/:id', protect, adminOnly, asyncHandler(async (req, res) => {
   const episode = await Episode.findById(req.params.id);
   if (!episode) return res.status(404).json({ message: 'Episode not found' });
   for (const file of episode.files) {
@@ -110,6 +143,6 @@ router.delete('/:id', protect, adminOnly, async (req, res) => {
   }
   await episode.deleteOne();
   res.json({ message: 'Episode deleted' });
-});
+}));
 
 module.exports = router;

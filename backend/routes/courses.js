@@ -1,43 +1,52 @@
 const express    = require('express');
 const router     = express.Router();
+const asyncHandler = require('express-async-handler');
 const Course     = require('../models/Course');
 const Episode    = require('../models/Episode');
 const Enrollment = require('../models/Enrollment');
 const { cloudinary, upload } = require('../config/cloudinary');
 const { protect, adminOnly } = require('../middleware/auth');
 
-// Helper: build a slug from a title
 const slugify = (str) =>
   str.toLowerCase().trim()
      .replace(/[^a-z0-9]+/g, '-')
      .replace(/^-+|-+$/g, '');
 
 // ── PUBLIC: list published courses ───────────────────────
-// No login required so the courses page (and shared links) work for anyone.
-router.get('/', async (req, res) => {
+router.get('/', asyncHandler(async (req, res) => {
   const courses = await Course.find({ isPublished: true })
     .select('-roadmapPublicId')
     .sort({ order: 1, createdAt: 1 });
-  res.json(courses);
-});
 
-// ── ADMIN: list ALL courses (incl. unpublished) ──────────
-router.get('/all', protect, adminOnly, async (req, res) => {
+  // episode counts so cards can show "18 lessons"
+  const counts = await Episode.aggregate([
+    { $match: { isPublished: true } },
+    { $group: { _id: '$course', count: { $sum: 1 } } },
+  ]);
+  const countMap = Object.fromEntries(counts.map(c => [String(c._id), c.count]));
+
+  res.json(courses.map(c => ({
+    ...c.toObject(),
+    episodeCount: countMap[String(c._id)] || 0,
+  })));
+}));
+
+// ── ADMIN: list ALL courses ──────────────────────────────
+router.get('/all', protect, adminOnly, asyncHandler(async (req, res) => {
   const courses = await Course.find().sort({ order: 1, createdAt: 1 });
   res.json(courses);
-});
+}));
 
-// ── Logged-in user: which courses am I enrolled in? ──────
-// Returns an array of course IDs. Put BEFORE "/:slug" so it isn't
-// captured as a slug param.
-router.get('/my/enrollments', protect, async (req, res) => {
-  const enrollments = await Enrollment.find({ user: req.user._id }).select('course');
-  res.json(enrollments.map(e => e.course));
-});
+// ── Logged-in user: my enrollments (full objects) ────────
+router.get('/my/enrollments', protect, asyncHandler(async (req, res) => {
+  const enrollments = await Enrollment.find({ user: req.user._id })
+    .populate('course', 'title slug thumbnail isPaid price level isPublished accessDays')
+    .sort({ updatedAt: -1 });
+  res.json(enrollments.filter(e => e.course)); // guard against deleted courses
+}));
 
-// ── PUBLIC: a course's roadmap (works even if course is draft) ──
-// Lightweight endpoint for the shareable roadmap page. No login.
-router.get('/:slug/roadmap', async (req, res) => {
+// ── PUBLIC: a course's roadmap ───────────────────────────
+router.get('/:slug/roadmap', asyncHandler(async (req, res) => {
   const course = await Course.findOne({ slug: req.params.slug })
     .select('title slug description roadmapPdfUrl thumbnail');
   if (!course) return res.status(404).json({ message: 'Course not found' });
@@ -51,27 +60,25 @@ router.get('/:slug/roadmap', async (req, res) => {
     thumbnail: course.thumbnail,
     roadmapPdfUrl: course.roadmapPdfUrl,
   });
-});
+}));
 
 // ── PUBLIC: single course by slug ────────────────────────
-router.get('/:slug', async (req, res) => {
+router.get('/:slug', asyncHandler(async (req, res) => {
   const course = await Course.findOne({ slug: req.params.slug, isPublished: true })
     .select('-roadmapPublicId');
   if (!course) return res.status(404).json({ message: 'Course not found' });
   res.json(course);
-});
+}));
 
 // ── ADMIN: create course ─────────────────────────────────
-router.post('/', protect, adminOnly, async (req, res) => {
-  const { title, description, thumbnail, phases, order, isPublished } = req.body;
+router.post('/', protect, adminOnly, asyncHandler(async (req, res) => {
+  const { title, description, thumbnail, phases, order, isPublished,
+          isPaid, price, mrp, whatYouLearn, level, language, accessDays } = req.body;
   if (!title) return res.status(400).json({ message: 'Title is required' });
 
   let slug = slugify(title);
-  // ensure slug uniqueness
   let n = 1;
-  while (await Course.findOne({ slug })) {
-    slug = `${slugify(title)}-${++n}`;
-  }
+  while (await Course.findOne({ slug })) slug = `${slugify(title)}-${++n}`;
 
   const course = await Course.create({
     title,
@@ -81,26 +88,34 @@ router.post('/', protect, adminOnly, async (req, res) => {
     phases:      Array.isArray(phases) ? phases : [],
     order:       order || 0,
     isPublished: isPublished || false,
+    isPaid:      Boolean(isPaid),
+    price:       Number(price) || 0,
+    mrp:         Number(mrp) || 0,
+    whatYouLearn: Array.isArray(whatYouLearn) ? whatYouLearn : [],
+    level:       level || 'Beginner',
+    language:    language || 'Hinglish',
+    accessDays:  Number(accessDays) || 0,
   });
   res.status(201).json(course);
-});
+}));
 
 // ── ADMIN: update course ─────────────────────────────────
-router.put('/:id', protect, adminOnly, async (req, res) => {
+router.put('/:id', protect, adminOnly, asyncHandler(async (req, res) => {
   const course = await Course.findById(req.params.id);
   if (!course) return res.status(404).json({ message: 'Course not found' });
 
-  const fields = ['title', 'description', 'thumbnail', 'order', 'isPublished'];
+  const fields = ['title', 'description', 'thumbnail', 'order', 'isPublished',
+                  'isPaid', 'price', 'mrp', 'level', 'language', 'accessDays'];
   fields.forEach(f => { if (req.body[f] !== undefined) course[f] = req.body[f]; });
-  if (Array.isArray(req.body.phases)) course.phases = req.body.phases;
+  if (Array.isArray(req.body.phases))       course.phases = req.body.phases;
+  if (Array.isArray(req.body.whatYouLearn)) course.whatYouLearn = req.body.whatYouLearn;
 
   await course.save();
   res.json(course);
-});
+}));
 
 // ── ADMIN: delete course ─────────────────────────────────
-// Blocked if the course still has episodes, to avoid orphaning content.
-router.delete('/:id', protect, adminOnly, async (req, res) => {
+router.delete('/:id', protect, adminOnly, asyncHandler(async (req, res) => {
   const course = await Course.findById(req.params.id);
   if (!course) return res.status(404).json({ message: 'Course not found' });
 
@@ -113,27 +128,25 @@ router.delete('/:id', protect, adminOnly, async (req, res) => {
   await Enrollment.deleteMany({ course: course._id });
   await course.deleteOne();
   res.json({ message: 'Course deleted' });
-});
+}));
 
-// ── ADMIN: upload/replace a course's public roadmap PDF ──
-router.post('/:id/roadmap', protect, adminOnly, upload.single('file'), async (req, res) => {
+// ── ADMIN: upload/replace roadmap PDF ────────────────────
+router.post('/:id/roadmap', protect, adminOnly, upload.single('file'), asyncHandler(async (req, res) => {
   const course = await Course.findById(req.params.id);
   if (!course) return res.status(404).json({ message: 'Course not found' });
   if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
 
-  // remove the previous roadmap file from Cloudinary if one exists
   if (course.roadmapPublicId) {
     try { await cloudinary.uploader.destroy(course.roadmapPublicId, { resource_type: 'raw' }); } catch (e) {}
   }
-
-  course.roadmapPdfUrl  = req.file.path;
+  course.roadmapPdfUrl   = req.file.path;
   course.roadmapPublicId = req.file.filename;
   await course.save();
   res.status(201).json({ message: 'Roadmap uploaded', roadmapPdfUrl: course.roadmapPdfUrl });
-});
+}));
 
-// ── ADMIN: remove a course's roadmap PDF ─────────────────
-router.delete('/:id/roadmap', protect, adminOnly, async (req, res) => {
+// ── ADMIN: remove roadmap PDF ────────────────────────────
+router.delete('/:id/roadmap', protect, adminOnly, asyncHandler(async (req, res) => {
   const course = await Course.findById(req.params.id);
   if (!course) return res.status(404).json({ message: 'Course not found' });
   if (course.roadmapPublicId) {
@@ -143,27 +156,36 @@ router.delete('/:id/roadmap', protect, adminOnly, async (req, res) => {
   course.roadmapPublicId = '';
   await course.save();
   res.json({ message: 'Roadmap removed' });
-});
+}));
 
-// ── Logged-in user: enroll (join) a course ───────────────
-router.post('/:id/enroll', protect, async (req, res) => {
+// ── Enroll: free courses only. Paid courses go via /api/payments ──
+router.post('/:id/enroll', protect, asyncHandler(async (req, res) => {
   const course = await Course.findById(req.params.id);
   if (!course || !course.isPublished) {
     return res.status(404).json({ message: 'Course not found' });
   }
+
+  if (course.isPaid) {
+    // Signal to the frontend: redirect to the payment page
+    return res.status(402).json({ requiresPayment: true, slug: course.slug });
+  }
+
   try {
-    await Enrollment.create({ user: req.user._id, course: course._id });
+    await Enrollment.create({ user: req.user._id, course: course._id, status: 'active' });
   } catch (e) {
-    // duplicate key = already enrolled; treat as success (idempotent)
-    if (e.code !== 11000) throw e;
+    if (e.code !== 11000) throw e;  // duplicate = already enrolled
   }
   res.status(201).json({ message: 'Enrolled', courseId: course._id });
-});
+}));
 
-// ── Logged-in user: unenroll (leave) a course ────────────
-router.delete('/:id/enroll', protect, async (req, res) => {
-  await Enrollment.deleteOne({ user: req.user._id, course: req.params.id });
+// ── Unenroll (free courses; paid enrollments stay) ───────
+router.delete('/:id/enroll', protect, asyncHandler(async (req, res) => {
+  const enrollment = await Enrollment.findOne({ user: req.user._id, course: req.params.id });
+  if (enrollment && enrollment.status === 'active' && enrollment.amount > 0) {
+    return res.status(400).json({ message: 'Purchased courses cannot be unenrolled' });
+  }
+  if (enrollment) await enrollment.deleteOne();
   res.json({ message: 'Unenrolled' });
-});
+}));
 
 module.exports = router;

@@ -76,4 +76,40 @@ router.get('/me', protect, async (req, res) => {
   });
 });
 
+
+// ── GET /api/auth/users  (admin) — student directory ─────
+const asyncHandler = require('express-async-handler');
+const Enrollment = require('../models/Enrollment');
+const { adminOnly } = require('../middleware/auth');
+
+router.get('/users', protect, adminOnly, asyncHandler(async (req, res) => {
+  const { search } = req.query;
+  const filter = {};
+  if (search && search.trim()) {
+    const rx = new RegExp(search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    filter.$or = [{ name: rx }, { email: rx }];
+  }
+  const users = await User.find(filter)
+    .select('name email avatar role createdAt')
+    .sort({ createdAt: -1 })
+    .limit(100);
+
+  const ids = users.map(u => u._id);
+  const enrollments = await Enrollment.find({ user: { $in: ids } })
+    .populate('course', 'title')
+    .select('user course status amount updatedAt');
+
+  const byUser = {};
+  enrollments.forEach(e => {
+    const k = String(e.user);
+    if (!byUser[k]) byUser[k] = [];
+    if (e.course) byUser[k].push({
+      title: e.course.title, status: e.status, amount: e.amount, updatedAt: e.updatedAt,
+    });
+  });
+
+  res.json(users.map(u => ({ ...u.toObject(), enrollments: byUser[String(u._id)] || [] })));
+}));
+
 module.exports = router;
+

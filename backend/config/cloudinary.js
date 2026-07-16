@@ -8,6 +8,7 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+// Documents / resources (raw files)
 const storage = new CloudinaryStorage({
   cloudinary,
   params: {
@@ -22,4 +23,19 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 },
 });
 
-module.exports = { cloudinary, upload };
+// Payment screenshots (images)
+const imageStorage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'learn-portal/payments',
+    resource_type: 'image',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+  },
+});
+
+const uploadImage = multer({
+  storage: imageStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
+
+module.exports = { cloudinary, upload, uploadImage };

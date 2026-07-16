@@ -1,117 +1,36 @@
 import { GoogleLogin } from '@react-oauth/google';
 import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
   const { loginWithGoogle } = useAuth();
   const navigate = useNavigate();
+  const [error, setError] = useState('');
 
-  const handleSuccess = async (credentialResponse) => {
+  const onSuccess = async (cred) => {
     try {
-      const user = await loginWithGoogle(credentialResponse.credential);
-      navigate(user.role === 'admin' ? '/admin' : '/courses');
-    } catch (err) {
-      alert('Login failed. Please try again.');
+      await loginWithGoogle(cred.credential);
+      navigate('/dashboard');
+    } catch {
+      setError('Login failed — please try again.');
     }
   };
 
   return (
-    <div style={styles.page}>
-      <div style={styles.card}>
-        {/* Logo / Brand */}
-        <div style={styles.brand}>
-          <span style={styles.brandAccent}>PyMaster</span>
-          <span style={styles.brandWhite}> India</span>
+    <div className="page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div className="card" style={{ maxWidth: 400, width: '100%', textAlign: 'center', padding: '40px 32px' }}>
+        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 22, marginBottom: 6 }}>
+          code<span style={{ color: 'var(--accent)' }}>With</span>Shivah
         </div>
-        <p style={styles.tagline}>Python A to Z — Beginner to Data Scientist</p>
-
-        <div style={styles.divider} />
-
-        <h2 style={styles.heading}>Access your notes & resources</h2>
-        <p style={styles.sub}>
-          Sign in with your Google account to download episode notes,
-          PDFs, tasks and more — completely free.
+        <p className="muted small" style={{ marginBottom: 28 }}>
+          Short, outcome-focused courses.<br />Sign in to start learning.
         </p>
-
-        <div style={styles.googleWrap}>
-          <GoogleLogin
-            onSuccess={handleSuccess}
-            onError={() => alert('Google login failed')}
-            useOneTap
-            theme="filled_blue"
-            shape="rectangular"
-            text="continue_with"
-            size="large"
-          />
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <GoogleLogin onSuccess={onSuccess} onError={() => setError('Login failed — please try again.')} theme="filled_black" shape="pill" />
         </div>
-
-        <p style={styles.note}>
-          No password needed. One click and you are in.
-        </p>
+        {error && <p className="small" style={{ color: 'var(--danger)', marginTop: 16 }}>{error}</p>}
       </div>
     </div>
   );
 }
-
-const styles = {
-  page: {
-    minHeight: '100vh',
-    background: '#0a0f1e',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '24px',
-  },
-  card: {
-    background: '#111827',
-    border: '1px solid #1e3a5f',
-    borderRadius: '16px',
-    padding: '48px 40px',
-    maxWidth: '420px',
-    width: '100%',
-    textAlign: 'center',
-  },
-  brand: {
-    fontSize: '32px',
-    fontWeight: '700',
-    marginBottom: '8px',
-    fontFamily: 'Arial, sans-serif',
-  },
-  brandAccent: { color: '#4A9EFF' },
-  brandWhite:  { color: '#FFFFFF' },
-  tagline: {
-    color: '#6B8CAE',
-    fontSize: '14px',
-    marginBottom: '32px',
-    fontFamily: 'Arial, sans-serif',
-  },
-  divider: {
-    height: '1px',
-    background: '#1e3a5f',
-    marginBottom: '32px',
-  },
-  heading: {
-    color: '#FFFFFF',
-    fontSize: '20px',
-    fontWeight: '600',
-    marginBottom: '12px',
-    fontFamily: 'Arial, sans-serif',
-  },
-  sub: {
-    color: '#8899AA',
-    fontSize: '14px',
-    lineHeight: '1.6',
-    marginBottom: '32px',
-    fontFamily: 'Arial, sans-serif',
-  },
-  googleWrap: {
-    display: 'flex',
-    justifyContent: 'center',
-    marginBottom: '20px',
-  },
-  note: {
-    color: '#4A6A8A',
-    fontSize: '12px',
-    fontFamily: 'Arial, sans-serif',
-  },
-};

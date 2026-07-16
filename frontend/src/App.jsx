@@ -3,20 +3,29 @@ import { useEffect } from 'react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { trackPageView } from './lib/analytics';
+import Navbar         from './components/Navbar';
 import Login          from './pages/Login';
+import Dashboard      from './pages/Dashboard';
 import Courses        from './pages/Courses';
 import CourseEpisodes from './pages/CourseEpisodes';
 import EpisodeDetail  from './pages/EpisodeDetail';
+import Payment        from './pages/Payment';
 import Admin          from './pages/Admin';
 import Analytics      from './pages/Analytics';
 import Roadmap        from './pages/Roadmap';
 import Roadmaps       from './pages/Roadmaps';
 
-// Wrapper — redirect to login if not authenticated
-function Protected({ children }) {
+function Protected({ children, adminOnly = false }) {
   const { user, loading } = useAuth();
-  if (loading) return <div style={{ color: '#4A9EFF', textAlign: 'center', paddingTop: '100px', fontFamily: 'Arial' }}>Loading...</div>;
-  return user ? children : <Navigate to="/login" replace />;
+  if (loading) return <div className="spinner-page">Loading…</div>;
+  if (!user) return <Navigate to="/login" replace />;
+  if (adminOnly && user.role !== 'admin') return <Navigate to="/dashboard" replace />;
+  return (
+    <>
+      <Navbar />
+      {children}
+    </>
+  );
 }
 
 function AppRoutes() {
@@ -31,26 +40,24 @@ function AppRoutes() {
 
   return (
     <Routes>
-      <Route path="/login" element={user ? <Navigate to="/courses" replace /> : <Login />} />
+      <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
 
-      {/* PUBLIC — no login. Shareable roadmap funnel link. */}
+      {/* PUBLIC — shareable roadmap funnel links */}
       <Route path="/r/:slug" element={<Roadmap />} />
       <Route path="/roadmap/:slug" element={<Roadmap />} />
 
-      {/* Courses */}
+      <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
       <Route path="/courses" element={<Protected><Courses /></Protected>} />
       <Route path="/courses/:slug" element={<Protected><CourseEpisodes /></Protected>} />
-
-      {/* Episode detail (unchanged) */}
       <Route path="/episodes/:id" element={<Protected><EpisodeDetail /></Protected>} />
+      <Route path="/pay/:slug" element={<Protected><Payment /></Protected>} />
 
-      {/* Old /episodes list now redirects to /courses */}
+      <Route path="/admin" element={<Protected adminOnly><Admin /></Protected>} />
+      <Route path="/admin/analytics" element={<Protected adminOnly><Analytics /></Protected>} />
+      <Route path="/admin/roadmaps" element={<Protected adminOnly><Roadmaps /></Protected>} />
+
       <Route path="/episodes" element={<Navigate to="/courses" replace />} />
-
-      <Route path="/admin" element={<Protected><Admin /></Protected>} />
-      <Route path="/admin/analytics" element={<Protected><Analytics /></Protected>} />
-      <Route path="/admin/roadmaps" element={<Protected><Roadmaps /></Protected>} />
-      <Route path="*" element={<Navigate to={user ? '/courses' : '/login'} replace />} />
+      <Route path="*" element={<Navigate to={user ? '/dashboard' : '/login'} replace />} />
     </Routes>
   );
 }

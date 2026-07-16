@@ -1,152 +1,194 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
+import Toast from '../components/Toast';
+import { useAuth } from '../context/AuthContext';
 
 const API = import.meta.env.VITE_API_URL;
 
-const fileIcons = {
-  pdf:  '📄',
-  docx: '📝',
-  pptx: '📊',
-  zip:  '📦',
-  txt:  '📃',
+// watch?v=XYZ | youtu.be/XYZ | shorts/XYZ -> embed URL
+const toEmbed = (url) => {
+  if (!url) return '';
+  const m = url.match(/(?:v=|youtu\.be\/|shorts\/|embed\/)([\w-]{11})/);
+  return m ? `https://www.youtube-nocookie.com/embed/${m[1]}?rel=0` : '';
 };
 
 export default function EpisodeDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [episode, setEpisode] = useState(null);
+  const [done, setDone] = useState(false);
+  const [locked, setLocked] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState('');
+  const { user } = useAuth();
+  const [questions, setQuestions] = useState([]);
+  const [doubt, setDoubt] = useState('');
+  const [asking, setAsking] = useState(false);
+
+  const loadQuestions = () => {
+    axios.get(`${API}/questions/episode/${id}`)
+      .then(({ data }) => setQuestions(data)).catch(() => {});
+  };
 
   useEffect(() => {
+    setLoading(true);
     axios.get(`${API}/episodes/${id}`)
-      .then(res => setEpisode(res.data))
-      .catch(() => navigate('/episodes'))
+      .then(async ({ data }) => {
+        setEpisode(data);
+        const { data: prog } = await axios.get(`${API}/progress/course/${data.course._id || data.course}`);
+        setDone(prog.some(p => String(p.episode) === String(id)));
+        loadQuestions();
+      })
+      .catch(err => {
+        if (err.response?.status === 403 && err.response.data.requiresPayment) {
+          setLocked(err.response.data.courseSlug);
+        } else {
+          setToast(err.response?.data?.message || 'Could not load episode');
+        }
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
-const handleDownload = async (file) => {
-  const filename = `${(file.label || 'download').replace(/[^a-zA-Z0-9-_ ]/g, '').replace(/\s+/g, '-')}.${file.fileType || 'pdf'}`;
-  try {
-    const response = await fetch(file.url);
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
-  } catch {
-    // fallback: open raw file in a new tab (still downloads, just plainer name)
-    window.open(file.url, '_blank', 'noopener,noreferrer');
-  }
-};
+  const askDoubt = async () => {
+    if (!doubt.trim()) { setToast('Type your doubt first'); return; }
+    setAsking(true);
+    try {
+      await axios.post(`${API}/questions`, { episodeId: id, text: doubt.trim() });
+      setDoubt('');
+      setToast('Doubt posted — you will get an answer here');
+      loadQuestions();
+    } catch (err) {
+      setToast(err.response?.data?.message || 'Could not post doubt');
+    } finally { setAsking(false); }
+  };
 
-  if (loading) return <div style={styles.loading}>Loading...</div>;
-  if (!episode) return null;
+  const removeDoubt = async (qid) => {
+    if (!window.confirm('Delete your question?')) return;
+    try {
+      await axios.delete(`${API}/questions/${qid}`);
+      loadQuestions();
+    } catch { setToast('Could not delete'); }
+  };
+
+  const toggleDone = async () => {
+    try {
+      if (done) {
+        await axios.delete(`${API}/progress/${id}/complete`);
+        setDone(false);
+      } else {
+        await axios.post(`${API}/progress/${id}/complete`);
+        setDone(true);
+        setToast('Marked complete 🎉');
+      }
+    } catch {
+      setToast('Could not update progress');
+    }
+  };
+
+  if (loading) return <div className="spinner-page">Loading lesson…</div>;
+
+  if (locked) return (
+    <div className="page"><div className="container section" style={{ maxWidth: 560 }}>
+      <div className="card" style={{ textAlign: 'center', padding: 40 }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
+        <h1 style={{ fontSize: 20, marginBottom: 8 }}>This lesson is part of the paid course</h1>
+        <p className="muted small" style={{ marginBottom: 20 }}>Unlock all lessons, notes and resources with one payment.</p>
+        <button className="btn btn-primary" onClick={() => navigate(`/pay/${locked}`)}>Unlock full course</button>
+      </div>
+    </div></div>
+  );
+
+  if (!episode) return <div className="spinner-page">Episode not found.</div>;
+
+  const embed = toEmbed(episode.youtubeUrl);
+  const courseSlug = episode.course?.slug;
 
   return (
-    <div style={styles.page}>
-      <div style={styles.content}>
+    <div className="page">
+      <div className="container section" style={{ maxWidth: 860 }}>
+        {courseSlug && <Link to={`/courses/${courseSlug}`} className="small muted">← {episode.course.title}</Link>}
 
-        {/* Back button */}
-        <button style={styles.back} onClick={() => navigate('/episodes')}>
-          ← Back to all episodes
-        </button>
+        <h1 style={{ fontSize: 21, margin: '12px 0 16px' }}>
+          <span className="muted">#{episode.episodeNumber}</span> {episode.title}
+        </h1>
 
-        {/* Episode header */}
-        <div style={styles.header}>
-          <div style={styles.headerTop}>
-            <span style={styles.epBadge}>Episode {episode.episodeNumber}</span>
-            <span style={styles.phaseBadge}>{episode.phase}</span>
-            {episode.duration && <span style={styles.duration}>⏱ {episode.duration}</span>}
+        {embed ? (
+          <div className="video-frame">
+            <iframe src={embed} title={episode.title} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
           </div>
-          <h1 style={styles.title}>{episode.title}</h1>
-          {episode.description && <p style={styles.desc}>{episode.description}</p>}
+        ) : episode.youtubeUrl ? (
+          <a href={episode.youtubeUrl} target="_blank" rel="noreferrer" className="btn btn-primary">▶ Watch on YouTube</a>
+        ) : null}
 
-          {/* Watch on YouTube button */}
-          {episode.youtubeUrl && (
-            <a href={episode.youtubeUrl} target="_blank" rel="noreferrer" style={styles.ytBtn}>
-              ▶ Watch on YouTube
-            </a>
-          )}
+        <div style={{ display: 'flex', gap: 10, margin: '16px 0', flexWrap: 'wrap', alignItems: 'center' }}>
+          <button className={`btn ${done ? 'btn-ghost' : 'btn-success'}`} onClick={toggleDone}>
+            {done ? '✓ Completed — undo' : 'Mark as complete'}
+          </button>
+          {episode.duration && <span className="badge badge-muted">{episode.duration}</span>}
+          {episode.phase && <span className="badge badge-muted">{episode.phase}</span>}
         </div>
 
-        {/* Files section */}
-        <div style={styles.section}>
-          <h2 style={styles.sectionTitle}>
-            📥 Downloads
-            <span style={styles.fileCount}>{episode.files?.length} files</span>
-          </h2>
-
-          {episode.files?.length === 0 ? (
-            <p style={styles.noFiles}>Files will be uploaded soon. Check back after watching the video.</p>
-          ) : (
-            <div style={styles.fileGrid}>
-              {episode.files?.map(file => (
-                <div key={file._id} style={styles.fileCard}>
-                  <div style={styles.fileIcon}>
-                    {fileIcons[file.fileType] || '📄'}
-                  </div>
-                  <div style={styles.fileInfo}>
-                    <p style={styles.fileLabel}>{file.label}</p>
-                    <p style={styles.fileMeta}>
-                      {file.fileType?.toUpperCase()}
-                      {file.size && ` · ${file.size}`}
-                    </p>
-                  </div>
-                  <button
-                    style={styles.dlBtn}
-                    onClick={() => handleDownload(file)}
-                  >
-                    Download
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Tags */}
-        {episode.tags?.length > 0 && (
-          <div style={styles.tags}>
-            {episode.tags.map(tag => (
-              <span key={tag} style={styles.tag}>#{tag}</span>
-            ))}
+        {episode.description && (
+          <div className="card" style={{ marginBottom: 16 }}>
+            <p className="small" style={{ whiteSpace: 'pre-wrap' }}>{episode.description}</p>
           </div>
         )}
 
+        {episode.files?.length > 0 && (
+          <div className="card">
+            <h2 style={{ fontSize: 15, marginBottom: 12 }}>Notes and resources</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {episode.files.map(f => (
+                <a key={f._id} href={f.url} target="_blank" rel="noreferrer"
+                   className="card" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--bg)' }}>
+                  <span style={{ fontSize: 20 }}>📄</span>
+                  <span style={{ flex: 1, fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>{f.label}</span>
+                  <span className="small muted">{f.size}</span>
+                  <span className="small" style={{ color: 'var(--accent)' }}>Download ↓</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="card" style={{ marginTop: 16 }}>
+          <h2 style={{ fontSize: 15, marginBottom: 4 }}>Doubts & questions</h2>
+          <p className="small muted" style={{ marginBottom: 14 }}>Stuck on something in this lesson? Ask here — Rajeev sir answers directly.</p>
+
+          <textarea className="textarea" placeholder="Type your doubt about this lesson…"
+            value={doubt} onChange={e => setDoubt(e.target.value)} />
+          <button className="btn btn-primary btn-sm" style={{ marginTop: 8 }} disabled={asking} onClick={askDoubt}>
+            {asking ? 'Posting…' : 'Ask doubt'}
+          </button>
+
+          {questions.length > 0 && <hr className="divider" />}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {questions.map(q => (
+              <div key={q._id}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  {q.user?.avatar && <img src={q.user.avatar} alt="" style={{ width: 22, height: 22, borderRadius: '50%' }} referrerPolicy="no-referrer" />}
+                  <span className="small" style={{ fontWeight: 600 }}>{q.user?.name}</span>
+                  <span className="small muted">{new Date(q.createdAt).toLocaleDateString('en-IN', { dateStyle: 'medium' })}</span>
+                  {!q.isAnswered && String(q.user?._id) === String(user?._id) && (
+                    <button className="small" style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', marginLeft: 'auto' }}
+                      onClick={() => removeDoubt(q._id)}>delete</button>
+                  )}
+                </div>
+                <p className="small" style={{ whiteSpace: 'pre-wrap' }}>{q.text}</p>
+                {q.isAnswered ? (
+                  <div style={{ background: 'var(--accent-soft)', borderRadius: 8, padding: '8px 12px', marginTop: 6 }}>
+                    <div className="small" style={{ color: 'var(--accent)', fontWeight: 600, marginBottom: 2 }}>Rajeev sir</div>
+                    <p className="small" style={{ whiteSpace: 'pre-wrap' }}>{q.answer}</p>
+                  </div>
+                ) : (
+                  <span className="badge badge-muted" style={{ marginTop: 6 }}>Awaiting answer</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
+      <Toast message={toast} onDone={() => setToast('')} />
     </div>
   );
 }
-
-const styles = {
-  page: { minHeight: '100vh', background: '#0a0f1e', fontFamily: 'Arial, sans-serif' },
-  loading: { color: '#6B8CAE', textAlign: 'center', paddingTop: '100px', fontFamily: 'Arial, sans-serif' },
-  content: { maxWidth: '800px', margin: '0 auto', padding: '32px 24px' },
-  back: { background: 'none', border: 'none', color: '#4A9EFF', cursor: 'pointer', fontSize: '14px', marginBottom: '24px', padding: 0 },
-  header: { background: '#111827', border: '1px solid #1e3a5f', borderRadius: '12px', padding: '28px', marginBottom: '24px' },
-  headerTop: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px', flexWrap: 'wrap' },
-  epBadge: { background: '#1e3a5f', color: '#4A9EFF', fontSize: '13px', fontWeight: '700', padding: '4px 12px', borderRadius: '20px' },
-  phaseBadge: { background: '#0F2318', color: '#4CAF7D', fontSize: '12px', padding: '4px 12px', borderRadius: '20px' },
-  duration: { color: '#6B8CAE', fontSize: '13px' },
-  title: { color: '#FFFFFF', fontSize: '24px', fontWeight: '700', marginBottom: '10px', lineHeight: '1.3' },
-  desc: { color: '#8899AA', fontSize: '15px', lineHeight: '1.6', marginBottom: '20px' },
-  ytBtn: { display: 'inline-block', background: '#FF0000', color: '#fff', padding: '10px 20px', borderRadius: '8px', textDecoration: 'none', fontSize: '14px', fontWeight: '600' },
-  section: { background: '#111827', border: '1px solid #1e3a5f', borderRadius: '12px', padding: '24px', marginBottom: '16px' },
-  sectionTitle: { color: '#FFFFFF', fontSize: '18px', fontWeight: '600', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '12px' },
-  fileCount: { background: '#1e3a5f', color: '#4A9EFF', fontSize: '12px', padding: '2px 10px', borderRadius: '20px', fontWeight: '400' },
-  noFiles: { color: '#4A6A8A', fontSize: '14px', textAlign: 'center', padding: '20px 0' },
-  fileGrid: { display: 'flex', flexDirection: 'column', gap: '10px' },
-  fileCard: { display: 'flex', alignItems: 'center', gap: '14px', background: '#0a0f1e', border: '1px solid #1e3a5f', borderRadius: '8px', padding: '14px 16px' },
-  fileIcon: { fontSize: '24px', flexShrink: 0 },
-  fileInfo: { flex: 1 },
-  fileLabel: { color: '#FFFFFF', fontSize: '15px', fontWeight: '500', marginBottom: '3px' },
-  fileMeta: { color: '#4A6A8A', fontSize: '12px' },
-  dlBtn: { background: '#1e3a5f', color: '#4A9EFF', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', flexShrink: 0 },
-  tags: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '16px' },
-  tag: { background: '#111827', color: '#4A6A8A', border: '1px solid #1e3a5f', fontSize: '12px', padding: '4px 10px', borderRadius: '20px' },
-};

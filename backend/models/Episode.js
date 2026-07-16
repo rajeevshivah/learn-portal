@@ -47,7 +47,12 @@ const episodeSchema = new mongoose.Schema({
     type: Boolean,
     default: false,   // admin controls visibility
   },
-  downloadCount: {
+  // Free preview: watchable without purchase even in a paid course
+  isFreePreview: {
+    type: Boolean,
+    default: false,
+  },
+  viewCount: {
     type: Number,
     default: 0,
   },
