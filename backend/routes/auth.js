@@ -41,12 +41,11 @@ router.post('/google', async (req, res) => {
         role: 'student',
       });
     } else {
-      // Update google info if they previously registered another way
-      if (!user.googleId) {
-        user.googleId = googleId;
-        user.avatar   = picture;
-        await user.save();
-      }
+      // Keep Google info fresh on every login (photo changes, first-time link, etc.)
+      let changed = false;
+      if (!user.googleId)                { user.googleId = googleId; changed = true; }
+      if (picture && user.avatar !== picture) { user.avatar = picture; changed = true; }
+      if (changed) await user.save();
     }
 
     res.json({

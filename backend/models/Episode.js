@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const fileSchema = new mongoose.Schema({
   label:       { type: String, required: true },   // e.g. "Class Notes", "Practice Tasks"
+  originalName:{ type: String, default: '' },      // original uploaded filename incl. extension
   url:         { type: String, required: true },   // Cloudinary URL
   publicId:    { type: String, required: true },   // Cloudinary public_id (for deletion)
   fileType:    { type: String, default: 'pdf' },   // pdf | docx | pptx | zip

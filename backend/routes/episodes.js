@@ -69,6 +69,64 @@ router.get('/:id', protect, asyncHandler(async (req, res) => {
   res.json(episode);
 }));
 
+// ── Download a file with proper filename (access-enforced) ──
+// Streams the file from Cloudinary through our server so the browser
+// saves it as "Class-Notes.pdf" instead of a random Cloudinary id.
+const https = require('https');
+
+const EXT_BY_TYPE = { pdf: '.pdf', doc: '.docx', docx: '.docx', ppt: '.pptx',
+                      pptx: '.pptx', txt: '.txt', zip: '.zip', code: '.zip' };
+
+const buildFilename = (file) => {
+  // Best source: the original uploaded name (new uploads store this)
+  if (file.originalName) return file.originalName.replace(/[^\w.\- ()]/g, '_');
+  // Fallback for old files: label + extension guessed from fileType or URL
+  let ext = EXT_BY_TYPE[file.fileType] || '';
+  if (!ext) {
+    const m = String(file.url).match(/\.(pdf|docx?|pptx?|txt|zip)(\?|$)/i);
+    if (m) ext = `.${m[1].toLowerCase()}`;
+  }
+  const base = String(file.label || 'download').replace(/[^\w.\- ()]/g, '_').trim() || 'download';
+  return base.toLowerCase().endsWith(ext.toLowerCase()) ? base : base + (ext || '.pdf');
+};
+
+router.get('/:episodeId/files/:fileId/download', protect, asyncHandler(async (req, res) => {
+  const episode = await Episode.findById(req.params.episodeId)
+    .populate('course', 'isPaid slug');
+  if (!episode) return res.status(404).json({ message: 'Episode not found' });
+
+  const isAdmin = req.user.role === 'admin';
+  if (!episode.isPublished && !isAdmin) {
+    return res.status(404).json({ message: 'Episode not found' });
+  }
+
+  const access = await hasCourseAccess(req.user, episode.course);
+  if (!access && !episode.isFreePreview) {
+    return res.status(403).json({ message: 'Purchase this course to download resources' });
+  }
+
+  const file = episode.files.id(req.params.fileId);
+  if (!file) return res.status(404).json({ message: 'File not found' });
+
+  const filename = buildFilename(file);
+
+  https.get(file.url, (upstream) => {
+    if (upstream.statusCode !== 200) {
+      res.status(502).json({ message: 'File is temporarily unavailable' });
+      upstream.resume();
+      return;
+    }
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', upstream.headers['content-type'] || 'application/octet-stream');
+    if (upstream.headers['content-length']) {
+      res.setHeader('Content-Length', upstream.headers['content-length']);
+    }
+    upstream.pipe(res);
+  }).on('error', () => {
+    if (!res.headersSent) res.status(502).json({ message: 'Could not fetch file' });
+  });
+}));
+
 // ── ADMIN: create episode ────────────────────────────────
 router.post('/', protect, adminOnly, asyncHandler(async (req, res) => {
   const { course, episodeNumber, title, description, phase,
@@ -112,8 +170,9 @@ router.post('/:episodeId/files', protect, adminOnly, upload.single('file'), asyn
   if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
   const { label, fileType } = req.body;
   episode.files.push({
-    label:    label || req.file.originalname,
-    url:      req.file.path,
+    label:        label || req.file.originalname,
+    originalName: req.file.originalname || '',
+    url:          req.file.path,
     publicId: req.file.filename,
     fileType: fileType || 'pdf',
     size:     req.file.size ? `${(req.file.size / 1024 / 1024).toFixed(1)} MB` : '',

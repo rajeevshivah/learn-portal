@@ -71,6 +71,32 @@ export default function EpisodeDetail() {
     } catch { setToast('Could not delete'); }
   };
 
+  const [downloading, setDownloading] = useState('');
+
+  const downloadFile = async (f) => {
+    setDownloading(f._id);
+    try {
+      const res = await axios.get(`${API}/episodes/${id}/files/${f._id}/download`, {
+        responseType: 'blob',
+      });
+      // filename from server header, fallback to label
+      let filename = f.label || 'download';
+      const cd = res.headers['content-disposition'];
+      const m = cd && cd.match(/filename="?([^";]+)"?/);
+      if (m) filename = m[1];
+      const blobUrl = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      setToast('Could not download file');
+    } finally { setDownloading(''); }
+  };
+
   const toggleDone = async () => {
     try {
       if (done) {
@@ -140,13 +166,16 @@ export default function EpisodeDetail() {
             <h2 style={{ fontSize: 15, marginBottom: 12 }}>Notes and resources</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {episode.files.map(f => (
-                <a key={f._id} href={f.url} target="_blank" rel="noreferrer"
-                   className="card" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--bg)' }}>
+                <button key={f._id} onClick={() => downloadFile(f)} disabled={downloading === f._id}
+                   className="card" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
+                     background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer', textAlign: 'left', width: '100%' }}>
                   <span style={{ fontSize: 20 }}>📄</span>
                   <span style={{ flex: 1, fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>{f.label}</span>
                   <span className="small muted">{f.size}</span>
-                  <span className="small" style={{ color: 'var(--accent)' }}>Download ↓</span>
-                </a>
+                  <span className="small" style={{ color: 'var(--accent)' }}>
+                    {downloading === f._id ? 'Downloading…' : 'Download ↓'}
+                  </span>
+                </button>
               ))}
             </div>
           </div>
@@ -160,6 +189,15 @@ export default function EpisodeDetail() {
           <button className="btn btn-primary btn-sm" style={{ marginTop: 8 }} disabled={asking} onClick={askDoubt}>
             {asking ? 'Posting…' : 'Ask doubt'}
           </button>
+          {import.meta.env.VITE_MENTORHUB_URL && (
+            <p className="small muted" style={{ marginTop: 10 }}>
+              Need deeper help than a text answer?{' '}
+              <a href={import.meta.env.VITE_MENTORHUB_URL} target="_blank" rel="noreferrer"
+                 style={{ color: 'var(--accent)' }}>
+                Book a live 1:1 session with Rajeev sir →
+              </a>
+            </p>
+          )}
 
           {questions.length > 0 && <hr className="divider" />}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>

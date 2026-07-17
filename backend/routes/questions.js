@@ -47,6 +47,21 @@ router.get('/episode/:episodeId', protect, asyncHandler(async (req, res) => {
   res.json(questions);
 }));
 
+// ── Student: my recently answered doubts (dashboard notifications) ──
+router.get('/my/answered', protect, asyncHandler(async (req, res) => {
+  const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000); // last 14 days
+  const questions = await Question.find({
+    user: req.user._id,
+    isAnswered: true,
+    answeredAt: { $gte: since },
+  })
+    .populate('episode', 'title episodeNumber')
+    .populate('course', 'title slug')
+    .sort({ answeredAt: -1 })
+    .limit(5);
+  res.json(questions);
+}));
+
 // ── Student deletes their own unanswered doubt ───────────
 router.delete('/:id', protect, asyncHandler(async (req, res) => {
   const question = await Question.findById(req.params.id);

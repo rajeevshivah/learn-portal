@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import ProgressBar from '../components/ProgressBar';
+import MentorHubSection from '../components/MentorHubSection';
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -12,6 +13,7 @@ export default function Dashboard() {
   const [enrollments, setEnrollments] = useState([]);
   const [summary, setSummary] = useState({});
   const [explore, setExplore] = useState([]);
+  const [answered, setAnswered] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -25,6 +27,11 @@ export default function Dashboard() {
       const enrolledIds = new Set(enr.data.map(e => String(e.course._id)));
       setExplore(all.data.filter(c => !enrolledIds.has(String(c._id))));
     }).catch(() => {}).finally(() => setLoading(false));
+
+    // answered doubts are non-critical — load separately, fail silently
+    axios.get(`${API}/questions/my/answered`)
+      .then(({ data }) => setAnswered(data))
+      .catch(() => {});
   }, []);
 
   if (loading) return <div className="spinner-page">Loading your dashboard…</div>;
@@ -45,10 +52,35 @@ export default function Dashboard() {
   return (
     <div className="page">
       <div className="container section">
-        <h1 style={{ fontSize: 24, marginBottom: 4 }}>
-          Namaste, {user.name.split(' ')[0]} 👋
-        </h1>
-        <p className="muted" style={{ marginBottom: 24 }}>Pick up where you left off.</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
+          {user.avatar && (
+            <img src={user.avatar} alt={user.name} referrerPolicy="no-referrer"
+              style={{ width: 52, height: 52, borderRadius: '50%', border: '2px solid var(--accent)' }} />
+          )}
+          <div>
+            <h1 style={{ fontSize: 24, marginBottom: 2 }}>
+              Namaste, {user.name.split(' ')[0]} 👋
+            </h1>
+            <p className="muted small">Pick up where you left off.</p>
+          </div>
+        </div>
+
+        {answered.length > 0 && (
+          <div className="card" style={{ borderColor: 'var(--accent)', marginBottom: 20 }}>
+            <strong style={{ color: 'var(--accent)' }}>Rajeev sir answered your doubt{answered.length > 1 ? 's' : ''} ✅</strong>
+            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {answered.map(q => (
+                <p key={q._id} className="small muted">
+                  <Link to={`/episodes/${q.episode?._id || q.episode}`}>
+                    #{q.episode?.episodeNumber} {q.episode?.title || 'Lesson'}
+                  </Link>
+                  {q.course?.title ? ` — ${q.course.title}` : ''} · answered{' '}
+                  {new Date(q.answeredAt).toLocaleDateString('en-IN', { dateStyle: 'medium' })}
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
 
         {pending.length > 0 && (
           <div className="card" style={{ borderColor: 'var(--warning)', marginBottom: 20 }}>
@@ -124,6 +156,8 @@ export default function Dashboard() {
             })}
           </div>
         )}
+
+        <MentorHubSection />
 
         {explore.length > 0 && (
           <>
