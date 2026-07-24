@@ -26,6 +26,7 @@ app.use('/api/progress',  require('./routes/progress'));
 app.use('/api/settings',  require('./routes/settings'));
 app.use('/api/questions', require('./routes/questions'));
 app.use('/api/analytics', require('./routes/analytics'));
+app.use('/api/events',    require('./routes/events'));
 
 // Health check
 app.get('/', (req, res) => res.json({ message: 'Learn Portal API running' }));

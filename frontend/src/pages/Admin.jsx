@@ -6,6 +6,7 @@ import EpisodesTab from './admin/EpisodesTab';
 import StudentsTab from './admin/StudentsTab';
 import SettingsTab from './admin/SettingsTab';
 import DoubtsTab   from './admin/DoubtsTab';
+import EventsTab   from './admin/EventsTab';
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -13,6 +14,7 @@ const TABS = [
   { id: 'payments', label: 'Payments' },
   { id: 'courses',  label: 'Courses' },
   { id: 'episodes', label: 'Episodes' },
+  { id: 'events',   label: 'Live & Workshops' },
   { id: 'doubts',   label: 'Doubts' },
   { id: 'students', label: 'Students' },
   { id: 'settings', label: 'Settings' },
@@ -22,6 +24,7 @@ export default function Admin() {
   const [tab, setTab] = useState('payments');
   const [pendingCount, setPendingCount] = useState(0);
   const [doubtCount, setDoubtCount] = useState(0);
+  const [eventPendingCount, setEventPendingCount] = useState(0);
 
   const refreshPending = () => {
     axios.get(`${API}/payments/pending`)
@@ -34,7 +37,13 @@ export default function Admin() {
       .catch(() => {});
   };
 
-  useEffect(() => { refreshPending(); refreshDoubts(); }, []);
+  const refreshEventPending = () => {
+    axios.get(`${API}/events/admin/pending`)
+      .then(({ data }) => setEventPendingCount(data.length))
+      .catch(() => {});
+  };
+
+  useEffect(() => { refreshPending(); refreshDoubts(); refreshEventPending(); }, []);
 
   return (
     <div className="page">
@@ -47,6 +56,7 @@ export default function Admin() {
               {t.label}
               {t.id === 'payments' && pendingCount > 0 && <span className="tab-count">{pendingCount}</span>}
               {t.id === 'doubts' && doubtCount > 0 && <span className="tab-count">{doubtCount}</span>}
+              {t.id === 'events' && eventPendingCount > 0 && <span className="tab-count">{eventPendingCount}</span>}
             </button>
           ))}
         </div>
@@ -54,6 +64,7 @@ export default function Admin() {
         {tab === 'payments' && <PaymentsTab onChange={refreshPending} />}
         {tab === 'courses'  && <CoursesTab />}
         {tab === 'episodes' && <EpisodesTab />}
+        {tab === 'events'   && <EventsTab onChange={refreshEventPending} />}
         {tab === 'doubts'   && <DoubtsTab onChange={refreshDoubts} />}
         {tab === 'students' && <StudentsTab />}
         {tab === 'settings' && <SettingsTab />}

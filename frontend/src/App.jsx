@@ -14,6 +14,8 @@ import Admin          from './pages/Admin';
 import Analytics      from './pages/Analytics';
 import Roadmap        from './pages/Roadmap';
 import Roadmaps       from './pages/Roadmaps';
+import Events         from './pages/Events';
+import EventDetail    from './pages/EventDetail';
 
 function Protected({ children, adminOnly = false }) {
   const { user, loading } = useAuth();
@@ -51,6 +53,8 @@ function AppRoutes() {
       <Route path="/courses/:slug" element={<Protected><CourseEpisodes /></Protected>} />
       <Route path="/episodes/:id" element={<Protected><EpisodeDetail /></Protected>} />
       <Route path="/pay/:slug" element={<Protected><Payment /></Protected>} />
+      <Route path="/events" element={<Protected><Events /></Protected>} />
+      <Route path="/events/:slug" element={<Protected><EventDetail /></Protected>} />
 
       <Route path="/admin" element={<Protected adminOnly><Admin /></Protected>} />
       <Route path="/admin/analytics" element={<Protected adminOnly><Analytics /></Protected>} />

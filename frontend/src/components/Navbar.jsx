@@ -20,6 +20,7 @@ export default function Navbar() {
         <div className={`nav-links ${open ? 'open' : ''}`}>
           <NavLink to="/dashboard" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`} onClick={close}>Dashboard</NavLink>
           <NavLink to="/courses" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`} onClick={close}>Courses</NavLink>
+          <NavLink to="/events" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`} onClick={close}>Live</NavLink>
           {user?.role === 'admin' && (
             <>
               <NavLink to="/admin" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`} onClick={close}>Admin</NavLink>
