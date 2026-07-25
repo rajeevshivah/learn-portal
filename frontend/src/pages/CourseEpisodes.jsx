@@ -98,18 +98,54 @@ export default function CourseEpisodes() {
   const completedHere = episodes.filter(e => doneSet.has(String(e._id))).length;
   const isSearching = query.trim() !== '' || filter !== 'all';
 
-  // group by phase, preserving course.phases order — now over the FILTERED list
-  const phaseOrder = course.phases?.length
-    ? course.phases
-    : [...new Set(episodes.map(e => e.phase).filter(Boolean))];
-  const grouped = [];
-  const seen = new Set();
-  phaseOrder.forEach(p => {
-    const list = visibleEpisodes.filter(e => e.phase === p);
-    if (list.length) { grouped.push({ phase: p, list }); list.forEach(e => seen.add(e._id)); }
+  // ── Phase grouping (robust to typos / inconsistent phase strings) ──
+  // Episodes were authored with free-text phase labels, so the same phase
+  // can appear as "Phase 1 — Basics" and "Phase 1 — Python Basics". Exact
+  // matching against course.phases dumped any near-miss into a stray
+  // "More lessons" bucket. We instead normalise each phase to a key, group
+  // by that key, and order phases by where they first appear in the
+  // course's registered phase list — falling back to the lowest episode
+  // number in the phase when it isn't registered. Nothing gets orphaned.
+  const normPhase = (p) => (p || '')
+    .toLowerCase()
+    .replace(/[–—-]/g, ' ')        // treat all dashes the same
+    .replace(/\bpython\b/g, ' ')   // "Python Basics" ≡ "Basics"
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // rank each registered phase so we can order groups by teaching order
+  const registeredRank = new Map();
+  (course.phases || []).forEach((p, i) => {
+    const k = normPhase(p);
+    if (!registeredRank.has(k)) registeredRank.set(k, i);
   });
-  const rest = visibleEpisodes.filter(e => !seen.has(e._id));
-  if (rest.length) grouped.push({ phase: grouped.length ? 'More lessons' : '', list: rest });
+
+  // build groups keyed by normalised phase, keeping the first non-empty
+  // label we see as the display name
+  const groupMap = new Map();   // key -> { label, list, minEp }
+  visibleEpisodes.forEach(ep => {
+    const key = normPhase(ep.phase);
+    if (!groupMap.has(key)) {
+      groupMap.set(key, { label: ep.phase || '', list: [], minEp: Infinity });
+    }
+    const g = groupMap.get(key);
+    g.list.push(ep);
+    const n = Number(ep.episodeNumber);
+    if (!Number.isNaN(n) && n < g.minEp) g.minEp = n;
+    if (!g.label && ep.phase) g.label = ep.phase;
+  });
+
+  const grouped = [...groupMap.entries()]
+    .map(([key, g]) => ({
+      phase: g.label,
+      list: g.list,
+      // registered phases sort first (by their listed order); the rest
+      // fall in after, ordered by their earliest episode number
+      rank: registeredRank.has(key)
+        ? registeredRank.get(key)
+        : 1000 + g.minEp,
+    }))
+    .sort((a, b) => a.rank - b.rank);
 
   const fmtDate = (d) => new Date(d).toLocaleString('en-IN', {
     day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true,

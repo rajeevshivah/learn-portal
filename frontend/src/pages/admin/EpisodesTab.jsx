@@ -28,6 +28,14 @@ export default function EpisodesTab() {
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
+  // Phases registered on the course currently selected in the form.
+  // Offering these as a dropdown stops new episodes from being saved with
+  // typo'd phase strings (the root cause of the "More lessons" scattering).
+  const selectedCourse = courses.find(c => c._id === form.course);
+  const phaseOptions = selectedCourse?.phases?.length ? selectedCourse.phases : [];
+  // true when the current phase value isn't one of the registered options
+  const phaseIsCustom = form.phase !== '' && !phaseOptions.includes(form.phase);
+
   const startEdit = (ep) => {
     setEditId(ep._id);
     setForm({
@@ -110,7 +118,37 @@ export default function EpisodesTab() {
             <textarea className="textarea" value={form.description} onChange={e => set('description', e.target.value)} /></div>
           <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
             <div className="field"><label className="label">Phase</label>
-              <input className="input" value={form.phase} onChange={e => set('phase', e.target.value)} placeholder="Phase 1 — Basics" /></div>
+              {phaseOptions.length > 0 ? (
+                <>
+                  <select
+                    className="select"
+                    value={phaseIsCustom ? '__custom__' : form.phase}
+                    onChange={e => set('phase', e.target.value === '__custom__' ? ' ' : e.target.value)}>
+                    <option value="">No phase</option>
+                    {phaseOptions.map(p => <option key={p} value={p}>{p}</option>)}
+                    <option value="__custom__">Custom…</option>
+                  </select>
+                  {phaseIsCustom && (
+                    <input
+                      className="input"
+                      style={{ marginTop: 6 }}
+                      value={form.phase}
+                      onChange={e => set('phase', e.target.value)}
+                      placeholder="Custom phase label"
+                      autoFocus />
+                  )}
+                </>
+              ) : (
+                <input className="input" value={form.phase}
+                  onChange={e => set('phase', e.target.value)}
+                  placeholder="Phase 1 — Basics" />
+              )}
+              {phaseOptions.length > 0 && (
+                <div className="small muted" style={{ marginTop: 4 }}>
+                  Pick a registered phase so this lesson groups correctly. Edit the list under Courses.
+                </div>
+              )}
+            </div>
             <div className="field"><label className="label">Duration</label>
               <input className="input" value={form.duration} onChange={e => set('duration', e.target.value)} placeholder="12 min" /></div>
             <div className="field"><label className="label">Tags (comma separated)</label>
