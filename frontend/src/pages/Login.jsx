@@ -1,17 +1,22 @@
 import { GoogleLogin } from '@react-oauth/google';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
   const { loginWithGoogle } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const [error, setError] = useState('');
+
+  // After login, send the user wherever they were trying to go (e.g. a shared webinar)
+  const redirect = params.get('redirect');
+  const dest = redirect && redirect.startsWith('/') ? redirect : '/dashboard';
 
   const onSuccess = async (cred) => {
     try {
       await loginWithGoogle(cred.credential);
-      navigate('/dashboard');
+      navigate(dest);
     } catch {
       setError('Login failed — please try again.');
     }

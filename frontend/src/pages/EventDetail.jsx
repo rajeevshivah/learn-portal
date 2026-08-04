@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
+import { QRCodeSVG } from 'qrcode.react';
 import Toast from '../components/Toast';
 
 const API = import.meta.env.VITE_API_URL;
@@ -223,11 +224,26 @@ export default function EventDetail() {
                   {event.payment.note && (
                     <p className="small muted" style={{ marginTop: 8 }}>{event.payment.note}</p>
                   )}
+
+                  {/* Scannable QR — works when paying from another phone / desktop */}
+                  <div style={{ textAlign: 'center', marginTop: 14 }}>
+                    <p className="small muted" style={{ marginBottom: 10 }}>
+                      Scan with any UPI app (amount pre-filled)
+                    </p>
+                    <div className="qr-box" style={{ display: 'inline-block' }}>
+                      <QRCodeSVG
+                        value={`upi://pay?pa=${encodeURIComponent(event.payment.upiId)}&pn=${encodeURIComponent(event.payment.upiName || '')}&am=${event.price}&cu=INR&tn=${encodeURIComponent(event.title)}`}
+                        size={180}
+                        level="M"
+                      />
+                    </div>
+                  </div>
+
                   <a
                     href={`upi://pay?pa=${encodeURIComponent(event.payment.upiId)}&pn=${encodeURIComponent(event.payment.upiName || '')}&am=${event.price}&cu=INR&tn=${encodeURIComponent(event.title)}`}
                     className="btn btn-primary btn-sm btn-block"
-                    style={{ marginTop: 12 }}>
-                    Pay ₹{event.price} via UPI app
+                    style={{ marginTop: 14 }}>
+                    Or pay ₹{event.price} via UPI app (on mobile)
                   </a>
                 </div>
               )}

@@ -549,6 +549,17 @@ export default function EventsTab({ onChange }) {
                 </div>
 
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                  {ev.isPublished && (
+                    <button className="btn btn-ghost btn-sm"
+                      onClick={() => {
+                        const link = `${window.location.origin}/live/${ev.slug}`;
+                        navigator.clipboard?.writeText(link)
+                          .then(() => setToast('Share link copied ✓'))
+                          .catch(() => setToast(link));
+                      }}>
+                      Copy share link
+                    </button>
+                  )}
                   <button className="btn btn-ghost btn-sm" onClick={() => openRegs(ev)}>
                     Registrations
                     {ev.counts.pending > 0 && <span className="tab-count">{ev.counts.pending}</span>}

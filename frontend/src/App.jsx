@@ -16,6 +16,7 @@ import Roadmap        from './pages/Roadmap';
 import Roadmaps       from './pages/Roadmaps';
 import Events         from './pages/Events';
 import EventDetail    from './pages/EventDetail';
+import LivePublic     from './pages/LivePublic';
 
 function Protected({ children, adminOnly = false }) {
   const { user, loading } = useAuth();
@@ -47,6 +48,9 @@ function AppRoutes() {
       {/* PUBLIC — shareable roadmap funnel links */}
       <Route path="/r/:slug" element={<Roadmap />} />
       <Route path="/roadmap/:slug" element={<Roadmap />} />
+
+      {/* PUBLIC — shareable live-webinar funnel link (Instagram bio, WhatsApp, etc.) */}
+      <Route path="/live/:slug" element={<LivePublic />} />
 
       <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
       <Route path="/courses" element={<Protected><Courses /></Protected>} />

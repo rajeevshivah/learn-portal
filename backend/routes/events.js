@@ -85,6 +85,62 @@ router.get('/', protect, asyncHandler(async (req, res) => {
   res.json(shaped);
 }));
 
+// ── GET /api/events/public/:slug — PUBLIC event detail ───
+// No login required. Safe subset only — never leaks joinUrl or whatsappLink.
+// Used by the shareable /live/:slug funnel page for logged-out visitors.
+router.get('/public/:slug', asyncHandler(async (req, res) => {
+  const event = await LiveEvent.findOne({ slug: req.params.slug })
+    .populate('course', 'title slug');
+
+  if (!event || !event.isPublished) {
+    return res.status(404).json({ message: 'Event not found' });
+  }
+
+  const obj = event.toObject();
+
+  // Public-safe shape: strip every sensitive field.
+  const shaped = {
+    _id:          obj._id,
+    type:         obj.type,
+    title:        obj.title,
+    slug:         obj.slug,
+    description:  obj.description,
+    thumbnail:    obj.thumbnail,
+    course:       obj.course,
+    isPaid:       obj.isPaid,
+    price:        obj.price,
+    mrp:          obj.mrp,
+    startsAt:     obj.startsAt,
+    endsAt:       obj.endsAt,
+    // schedule shown WITHOUT join links
+    sessions: (obj.sessions || []).map(s => ({
+      _id: s._id, title: s.title, startsAt: s.startsAt, durationMins: s.durationMins,
+    })),
+    seatLimit:        obj.seatLimit,
+    registrationOpen: isRegistrationOpen(event),
+  };
+
+  // Seats left (public info — helps urgency)
+  if (event.seatLimit > 0) {
+    const taken = await Registration.countDocuments({
+      event: event._id, status: { $in: ['active', 'pending'] },
+    });
+    shaped.seatsLeft = Math.max(0, event.seatLimit - taken);
+  }
+
+  // Paid → hand over UPI details so the public page can render QR + UPI id
+  if (event.isPaid) {
+    const settings = await Settings.get();
+    shaped.payment = {
+      upiId:   settings.upiId,
+      upiName: settings.upiName,
+      note:    settings.paymentNote,
+    };
+  }
+
+  res.json(shaped);
+}));
+
 // ── GET /api/events/:slug — single event detail ──────────
 router.get('/:slug', protect, asyncHandler(async (req, res) => {
   const event = await LiveEvent.findOne({ slug: req.params.slug })

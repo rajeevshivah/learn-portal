@@ -14,6 +14,8 @@ export default function Dashboard() {
   const [summary, setSummary] = useState({});
   const [explore, setExplore] = useState([]);
   const [answered, setAnswered] = useState([]);
+  const [events, setEvents] = useState([]);          // upcoming published live events
+  const [myRegs, setMyRegs] = useState([]);          // this student's registrations
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -32,6 +34,14 @@ export default function Dashboard() {
     axios.get(`${API}/questions/my/answered`)
       .then(({ data }) => setAnswered(data))
       .catch(() => {});
+
+    // upcoming live events + my registrations — non-critical, load separately
+    axios.get(`${API}/events?scope=upcoming`)
+      .then(({ data }) => setEvents(data))
+      .catch(() => {});
+    axios.get(`${API}/events/my/registrations`)
+      .then(({ data }) => setMyRegs(data))
+      .catch(() => {});
   }, []);
 
   if (loading) return <div className="spinner-page">Loading your dashboard…</div>;
@@ -48,6 +58,20 @@ export default function Dashboard() {
     .map(e => ({ e, s: summary[String(e.course._id)] }))
     .filter(x => x.s && x.s.total > 0 && x.s.completed < x.s.total)
     .sort((a, b) => new Date(b.s.lastActivity) - new Date(a.s.lastActivity))[0];
+
+  // ── Live events split into "I'm registered" vs "new / not registered yet" ──
+  const regByEvent = {};
+  myRegs.forEach(r => { if (r.event?._id) regByEvent[String(r.event._id)] = r; });
+
+  const myLiveRegs = myRegs.filter(
+    r => r.event && !r.event.isCompleted && ['active', 'pending'].includes(r.status)
+  );
+  const newEvents = events.filter(e => !regByEvent[String(e._id)]);
+
+  const fmtEvent = (d) => d ? new Date(d).toLocaleString('en-IN', {
+    weekday: 'short', day: 'numeric', month: 'short',
+    hour: 'numeric', minute: '2-digit', hour12: true,
+  }) : '';
 
   return (
     <div className="page">
@@ -121,6 +145,62 @@ export default function Dashboard() {
               Resume course →
             </button>
           </div>
+        )}
+
+        {/* ── My live sessions (registered) ── */}
+        {myLiveRegs.length > 0 && (
+          <>
+            <h2 style={{ fontSize: 18, marginBottom: 14 }}>Your live sessions</h2>
+            <div className="grid-cards" style={{ marginBottom: 26 }}>
+              {myLiveRegs.map(r => (
+                <Link key={r._id} to={`/events/${r.event.slug}`} className="card card-hover" style={{ color: 'inherit' }}>
+                  {r.event.thumbnail && (
+                    <img src={r.event.thumbnail} alt="" style={{ borderRadius: 8, marginBottom: 12, aspectRatio: '16/9', objectFit: 'cover' }} />
+                  )}
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                    <span className="badge badge-muted">{r.event.type === 'workshop' ? 'Workshop' : 'Live class'}</span>
+                    {r.status === 'active'
+                      ? <span className="badge badge-success">Registered</span>
+                      : <span className="badge badge-warning">Payment under verification</span>}
+                  </div>
+                  <h3 style={{ fontSize: 16, marginBottom: 6 }}>{r.event.title}</h3>
+                  {r.event.sessions?.[0] && (
+                    <p className="small muted">{fmtEvent(r.event.sessions[0].startsAt)}</p>
+                  )}
+                </Link>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* ── New live sessions (not registered yet) ── */}
+        {newEvents.length > 0 && (
+          <>
+            <h2 style={{ fontSize: 18, marginBottom: 14 }}>New live sessions 🔴</h2>
+            <div className="grid-cards" style={{ marginBottom: 26 }}>
+              {newEvents.map(e => (
+                <div key={e._id} className="card card-hover">
+                  {e.thumbnail && (
+                    <img src={e.thumbnail} alt="" style={{ borderRadius: 8, marginBottom: 12, aspectRatio: '16/9', objectFit: 'cover' }} />
+                  )}
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                    <span className="badge badge-muted">{e.type === 'workshop' ? 'Workshop' : 'Live class'}</span>
+                    {e.isPaid
+                      ? <span className="badge badge-warning">₹{e.price}</span>
+                      : <span className="badge badge-accent">Free</span>}
+                  </div>
+                  <h3 style={{ fontSize: 16, marginBottom: 6 }}>{e.title}</h3>
+                  {e.startsAt && (
+                    <p className="small muted" style={{ marginBottom: 12 }}>{fmtEvent(e.startsAt)}</p>
+                  )}
+                  <button className="btn btn-primary btn-sm btn-block"
+                    onClick={() => navigate(`/events/${e.slug}`)}>
+                    {e.isPaid ? 'View & register →' : 'Register free →'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </>
         )}
 
         <h2 style={{ fontSize: 18, marginBottom: 14 }}>My courses</h2>
