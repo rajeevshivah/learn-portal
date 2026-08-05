@@ -7,6 +7,18 @@ import MentorHubSection from '../components/MentorHubSection';
 
 const API = import.meta.env.VITE_API_URL;
 
+// Live countdown parts for a target date; returns null once it's in the past.
+function countdownParts(target) {
+  if (!target) return null;
+  const diff = new Date(target) - new Date();
+  if (diff <= 0) return null;
+  const d = Math.floor(diff / 86400000);
+  const h = Math.floor((diff % 86400000) / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  const s = Math.floor((diff % 60000) / 1000);
+  return { d, h, m, s };
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -17,6 +29,13 @@ export default function Dashboard() {
   const [events, setEvents] = useState([]);          // upcoming published live events
   const [myRegs, setMyRegs] = useState([]);          // this student's registrations
   const [loading, setLoading] = useState(true);
+  const [, setTick] = useState(0);                   // drives the live countdown
+
+  // tick every second so the hero countdown stays live
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -66,7 +85,16 @@ export default function Dashboard() {
   const myLiveRegs = myRegs.filter(
     r => r.event && !r.event.isCompleted && ['active', 'pending'].includes(r.status)
   );
-  const newEvents = events.filter(e => !regByEvent[String(e._id)]);
+  // Show ONLY events that are still open for registration and the student
+  // hasn't registered for yet. (registrationOpen is computed server-side.)
+  const newEvents = events
+    .filter(e => !regByEvent[String(e._id)] && e.registrationOpen)
+    .sort((a, b) => new Date(a.startsAt || 0) - new Date(b.startsAt || 0));
+
+  // The soonest one becomes the attention-grabbing hero; the rest are cards.
+  const heroEvent = newEvents[0];
+  const restEvents = newEvents.slice(1);
+  const heroCountdown = countdownParts(heroEvent?.startsAt);
 
   const fmtEvent = (d) => d ? new Date(d).toLocaleString('en-IN', {
     weekday: 'short', day: 'numeric', month: 'short',
@@ -173,12 +201,69 @@ export default function Dashboard() {
           </>
         )}
 
-        {/* ── New live sessions (not registered yet) ── */}
-        {newEvents.length > 0 && (
+        {/* ── New live session — HERO banner for the most imminent one ── */}
+        {heroEvent && (
+          <div className="live-hero">
+            <div className="live-hero-body">
+              <span className="live-eyebrow">
+                <span className="live-dot" />
+                {heroEvent.type === 'workshop' ? 'Live workshop · registering now' : 'Live class · registering now'}
+              </span>
+              <h2 className="live-hero-title">{heroEvent.title}</h2>
+              <p className="live-hero-meta">
+                <strong>{fmtEvent(heroEvent.startsAt)}</strong>
+                {heroEvent.sessions?.length > 1 && <> · {heroEvent.sessions.length} days</>}
+                {' · '}
+                {heroEvent.isPaid ? <>₹{heroEvent.price}</> : 'Free'}
+              </p>
+              <button className="btn btn-primary live-hero-cta"
+                onClick={() => navigate(`/events/${heroEvent.slug}`)}>
+                {heroEvent.isPaid ? 'Grab your seat →' : 'Register free →'}
+              </button>
+            </div>
+
+            <div>
+              {heroCountdown ? (
+                <div className="live-count">
+                  <div className="live-count-unit">
+                    <div className="live-count-num">{heroCountdown.d}</div>
+                    <div className="live-count-lbl">Days</div>
+                  </div>
+                  <div className="live-count-unit">
+                    <div className="live-count-num">{String(heroCountdown.h).padStart(2, '0')}</div>
+                    <div className="live-count-lbl">Hrs</div>
+                  </div>
+                  <div className="live-count-unit">
+                    <div className="live-count-num">{String(heroCountdown.m).padStart(2, '0')}</div>
+                    <div className="live-count-lbl">Min</div>
+                  </div>
+                  <div className="live-count-unit">
+                    <div className="live-count-num">{String(heroCountdown.s).padStart(2, '0')}</div>
+                    <div className="live-count-lbl">Sec</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="live-count">
+                  <div className="live-count-unit" style={{ minWidth: 0, flex: 1 }}>
+                    <div className="live-count-num" style={{ fontSize: 20 }}>Starting soon</div>
+                  </div>
+                </div>
+              )}
+              {typeof heroEvent.seatsLeft === 'number' && heroEvent.seatsLeft <= 10 && (
+                <p className="live-seats">
+                  {heroEvent.seatsLeft > 0 ? `Only ${heroEvent.seatsLeft} seats left` : 'Waitlist only'}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Any additional open sessions as compact cards ── */}
+        {restEvents.length > 0 && (
           <>
-            <h2 style={{ fontSize: 18, marginBottom: 14 }}>New live sessions 🔴</h2>
+            <h2 style={{ fontSize: 18, marginBottom: 14 }}>More live sessions</h2>
             <div className="grid-cards" style={{ marginBottom: 26 }}>
-              {newEvents.map(e => (
+              {restEvents.map(e => (
                 <div key={e._id} className="card card-hover">
                   {e.thumbnail && (
                     <img src={e.thumbnail} alt="" style={{ borderRadius: 8, marginBottom: 12, aspectRatio: '16/9', objectFit: 'cover' }} />
