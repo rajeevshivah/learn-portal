@@ -7,6 +7,7 @@ import StudentsTab from './admin/StudentsTab';
 import SettingsTab from './admin/SettingsTab';
 import DoubtsTab   from './admin/DoubtsTab';
 import EventsTab   from './admin/EventsTab';
+import PollsTab    from './admin/PollsTab';
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -15,6 +16,7 @@ const TABS = [
   { id: 'courses',  label: 'Courses' },
   { id: 'episodes', label: 'Episodes' },
   { id: 'events',   label: 'Live & Workshops' },
+  { id: 'polls',    label: 'Polls & Ideas' },
   { id: 'doubts',   label: 'Doubts' },
   { id: 'students', label: 'Students' },
   { id: 'settings', label: 'Settings' },
@@ -65,6 +67,7 @@ export default function Admin() {
         {tab === 'courses'  && <CoursesTab />}
         {tab === 'episodes' && <EpisodesTab />}
         {tab === 'events'   && <EventsTab onChange={refreshEventPending} />}
+        {tab === 'polls'    && <PollsTab />}
         {tab === 'doubts'   && <DoubtsTab onChange={refreshDoubts} />}
         {tab === 'students' && <StudentsTab />}
         {tab === 'settings' && <SettingsTab />}

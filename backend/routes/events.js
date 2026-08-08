@@ -88,6 +88,7 @@ router.get('/', protect, asyncHandler(async (req, res) => {
 // ── GET /api/events/public/:slug — PUBLIC event detail ───
 // No login required. Safe subset only — never leaks joinUrl or whatsappLink.
 // Used by the shareable /live/:slug funnel page for logged-out visitors.
+// NOTE: must be declared BEFORE '/:slug' so Express matches it first.
 router.get('/public/:slug', asyncHandler(async (req, res) => {
   const event = await LiveEvent.findOne({ slug: req.params.slug })
     .populate('course', 'title slug');

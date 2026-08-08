@@ -7,6 +7,10 @@ import Toast from '../components/Toast';
 
 const API = import.meta.env.VITE_API_URL;
 
+// Isolated axios instance with NO shared defaults, so the global Authorization
+// header (which may hold a stale token) can never attach to this public call.
+const publicApi = axios.create();
+
 // PUBLIC webinar landing page — shareable on Instagram bio, WhatsApp, anywhere.
 // A logged-out visitor can see the full event and tap Register, which sends
 // them through Google login and straight back here to complete registration.
@@ -17,6 +21,7 @@ export default function LivePublic() {
 
   const [event, setEvent]     = useState(null);
   const [loading, setLoading] = useState(true);
+  const [errKind, setErrKind] = useState(null); // 'notfound' | 'network' | null
   const [toast, setToast]     = useState('');
 
   // If the visitor is ALREADY logged in, skip the public page entirely and
@@ -28,11 +33,17 @@ export default function LivePublic() {
   }, [authLoading, user, slug, navigate]);
 
   const load = useCallback(async () => {
+    setLoading(true);
+    setErrKind(null);
     try {
-      const { data } = await axios.get(`${API}/events/public/${slug}`);
+      // Anonymous request via the isolated instance — never sends a token.
+      const { data } = await publicApi.get(`${API}/events/public/${slug}`);
       setEvent(data);
     } catch (e) {
-      setToast(e.response?.data?.message || 'Could not load this session');
+      const status = e.response?.status;
+      if (status === 404) setErrKind('notfound');
+      else setErrKind('network');
+      setToast(e.response?.data?.message || 'Could not load this session — please retry.');
     } finally {
       setLoading(false);
     }
@@ -47,7 +58,29 @@ export default function LivePublic() {
 
   if (authLoading || loading) return <div className="spinner-page">Loading…</div>;
   if (user) return <div className="spinner-page">Redirecting…</div>;
-  if (!event)  return <div className="spinner-page">Session not found.</div>;
+
+  // Distinguish a genuinely missing event from a transient load failure so a
+  // network blip never permanently reads as "Session not found."
+  if (!event) {
+    return (
+      <div className="page">
+        <div className="container section" style={{ maxWidth: 560, textAlign: 'center' }}>
+          <h1 style={{ fontSize: 22, marginBottom: 10 }}>
+            {errKind === 'notfound' ? 'Session not found' : 'Couldn’t load this session'}
+          </h1>
+          <p className="muted small" style={{ marginBottom: 18 }}>
+            {errKind === 'notfound'
+              ? 'This live session may have ended or the link is incorrect.'
+              : 'Something went wrong loading this page. Please check your connection and try again.'}
+          </p>
+          {errKind !== 'notfound' && (
+            <button className="btn btn-primary" onClick={load}>Retry</button>
+          )}
+        </div>
+        <Toast message={toast} onDone={() => setToast('')} />
+      </div>
+    );
+  }
 
   const multi = event.sessions?.length > 1;
 

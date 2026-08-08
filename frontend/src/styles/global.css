@@ -307,6 +307,112 @@ button { font-family: inherit; }
   font-size: 12.5px; color: var(--warning); font-weight: 600;
 }
 
+/* ── Poll modal (blocking dashboard vote) ── */
+.poll-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  background: rgba(6, 10, 20, 0.72);
+  backdrop-filter: blur(4px);
+  animation: poll-fade 0.2s ease;
+}
+@keyframes poll-fade { from { opacity: 0; } }
+.poll-modal {
+  width: 100%; max-width: 440px;
+  background: linear-gradient(180deg, var(--surface-2) 0%, var(--surface) 100%);
+  border: 1px solid var(--border-hi);
+  border-radius: var(--radius);
+  padding: 26px 24px;
+  box-shadow: var(--shadow);
+  animation: poll-rise 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes poll-rise { from { opacity: 0; transform: translateY(12px); } }
+.poll-eyebrow {
+  display: inline-block; font-size: 12px; font-weight: 700;
+  color: var(--accent); letter-spacing: 0.04em; margin-bottom: 10px;
+}
+.poll-question {
+  font-family: var(--font-display); font-size: 21px; line-height: 1.25;
+  font-weight: 700; margin: 0 0 6px; color: var(--text);
+}
+.poll-sub { font-size: 13.5px; color: var(--text-2); margin: 0 0 18px; }
+
+.poll-options { display: flex; flex-direction: column; gap: 10px; }
+.poll-option {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; text-align: left; cursor: pointer;
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 14px 16px; font-size: 15px; font-weight: 500;
+  transition: border-color 0.15s, background 0.15s;
+}
+.poll-option:hover { border-color: var(--border-hi); }
+.poll-option.picked { border-color: var(--accent); background: var(--accent-soft); }
+.poll-radio {
+  width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
+  border: 2px solid var(--border-hi); transition: all 0.15s;
+}
+.poll-option.picked .poll-radio {
+  border-color: var(--accent);
+  background: radial-gradient(circle at center, var(--accent) 0 5px, transparent 6px);
+}
+.poll-err { color: var(--danger); font-size: 13px; margin: 12px 0 0; }
+.poll-actions {
+  display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px;
+}
+
+.poll-results { display: flex; flex-direction: column; gap: 14px; }
+.poll-result-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 14px; color: var(--text); margin-bottom: 6px; gap: 12px;
+}
+.poll-result-pct { font-size: 12.5px; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.poll-bar-track {
+  height: 8px; border-radius: 6px; background: var(--bg);
+  border: 1px solid var(--border); overflow: hidden;
+}
+.poll-bar-fill {
+  height: 100%; border-radius: 6px; background: var(--border-hi);
+  transition: width 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.poll-bar-fill.mine { background: var(--accent); }
+.poll-total { font-size: 12.5px; color: var(--text-3); text-align: center; margin: 16px 0 0; }
+
+/* compact results strip left on the dashboard after voting/dismissing */
+.poll-strip {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); padding: 14px 18px; margin-bottom: 24px;
+}
+.poll-strip-q { font-weight: 600; color: var(--text); font-size: 14px; }
+.poll-strip-open {
+  margin-left: auto; background: none; border: none; cursor: pointer;
+  color: var(--accent); font-size: 13px; font-weight: 600;
+}
+
+/* ── Suggest-a-topic box ── */
+.suggest-box {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); padding: 20px 22px; margin: 8px 0 28px;
+}
+.suggest-head { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 16px; }
+.suggest-icon {
+  font-size: 20px; line-height: 1; flex-shrink: 0;
+  width: 40px; height: 40px; border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-soft);
+}
+.suggest-title { font-size: 16px; margin: 0 0 2px; color: var(--text); }
+.suggest-sub { font-size: 13px; color: var(--text-2); margin: 0; }
+.suggest-row { display: flex; gap: 10px; }
+.suggest-row .input { flex: 1; }
+.suggest-err { color: var(--danger); font-size: 13px; margin: 10px 0 0; }
+.suggest-thanks { font-size: 14px; color: var(--success); font-weight: 600; }
+.suggest-again {
+  background: none; border: none; cursor: pointer;
+  color: var(--accent); font-size: 13.5px; font-weight: 600; margin-left: 4px;
+}
+
 /* ── Responsive ── */
 @media (max-width: 720px) {
   .nav-burger { display: block; margin-left: auto; }
@@ -324,6 +430,7 @@ button { font-family: inherit; }
   .live-hero-title { font-size: 21px; }
   .live-count { justify-content: flex-start; }
   .live-count-unit { min-width: 0; flex: 1; }
+  .suggest-row { flex-direction: column; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

@@ -4,6 +4,8 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import ProgressBar from '../components/ProgressBar';
 import MentorHubSection from '../components/MentorHubSection';
+import PollModal from '../components/PollModal';
+import SuggestBox from '../components/SuggestBox';
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -28,6 +30,8 @@ export default function Dashboard() {
   const [answered, setAnswered] = useState([]);
   const [events, setEvents] = useState([]);          // upcoming published live events
   const [myRegs, setMyRegs] = useState([]);          // this student's registrations
+  const [poll, setPoll] = useState(null);            // active dashboard poll
+  const [pollOpen, setPollOpen] = useState(false);   // blocking modal visibility
   const [loading, setLoading] = useState(true);
   const [, setTick] = useState(0);                   // drives the live countdown
 
@@ -61,7 +65,26 @@ export default function Dashboard() {
     axios.get(`${API}/events/my/registrations`)
       .then(({ data }) => setMyRegs(data))
       .catch(() => {});
+
+    // active dashboard poll — block once per session until voted or dismissed
+    axios.get(`${API}/polls/active`)
+      .then(({ data }) => {
+        if (!data) return;
+        setPoll(data);
+        const handled = sessionStorage.getItem(`poll-handled-${data._id}`);
+        // Block if they haven't voted AND haven't dismissed it this session
+        if (!data.hasVoted && !handled) setPollOpen(true);
+      })
+      .catch(() => {});
   }, []);
+
+  // Called when the student votes or dismisses — stop blocking for this session.
+  const handlePollClose = () => {
+    if (poll) sessionStorage.setItem(`poll-handled-${poll._id}`, '1');
+    setPollOpen(false);
+    // refresh the poll so the dashboard strip shows latest tallies / voted state
+    axios.get(`${API}/polls/active`).then(({ data }) => data && setPoll(data)).catch(() => {});
+  };
 
   if (loading) return <div className="spinner-page">Loading your dashboard…</div>;
 
@@ -103,6 +126,9 @@ export default function Dashboard() {
 
   return (
     <div className="page">
+      {pollOpen && poll && (
+        <PollModal poll={poll} onClose={handlePollClose} />
+      )}
       <div className="container section">
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
           {user.avatar && (
@@ -116,6 +142,19 @@ export default function Dashboard() {
             <p className="muted small">Pick up where you left off.</p>
           </div>
         </div>
+
+        {/* Compact poll reminder once the modal has been handled this session */}
+        {poll && !pollOpen && (
+          <div className="poll-strip">
+            <span>📊</span>
+            <span className="poll-strip-q">
+              {poll.hasVoted ? 'Thanks for voting!' : 'We’d love your vote:'} {poll.question}
+            </span>
+            <button className="poll-strip-open" onClick={() => setPollOpen(true)}>
+              {poll.hasVoted ? 'See results →' : 'Vote now →'}
+            </button>
+          </div>
+        )}
 
         {answered.length > 0 && (
           <div className="card" style={{ borderColor: 'var(--accent)', marginBottom: 20 }}>
@@ -323,6 +362,8 @@ export default function Dashboard() {
         )}
 
         <MentorHubSection />
+
+        <SuggestBox />
 
         {explore.length > 0 && (
           <>
