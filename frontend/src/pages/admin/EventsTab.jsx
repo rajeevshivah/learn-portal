@@ -30,6 +30,64 @@ const toLocalInput = (iso) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
+// ── JSON import ──────────────────────────────────────────
+// Sample template shown by the "Format" button. This is exactly the shape
+// the importer understands; give this to an AI to generate a full event.
+const JSON_TEMPLATE = {
+  type: 'workshop',                // 'workshop' or 'live-class'
+  title: 'Your First Push into Tech',
+  slug: '',                        // optional — auto-generated from title if blank
+  description: 'A 5-day evening webinar for beginners.',
+  thumbnail: '',                   // optional image URL
+  isPaid: true,
+  price: 199,
+  mrp: 499,                        // optional strike-through price
+  whatsappLink: 'https://chat.whatsapp.com/xxxxxxxx',
+  confirmationMsg: 'You are registered! Join the WhatsApp group for the link.',
+  seatLimit: 0,                    // 0 = unlimited
+  registrationClosesAt: '',        // optional ISO date, e.g. '2026-08-08T18:00'
+  sessions: [
+    { title: 'Day 1 — Your First Program', startsAt: '2026-08-08T20:30', durationMins: 60, joinUrl: '' },
+    { title: 'Day 2 — The Logic Behind Code', startsAt: '2026-08-09T20:30', durationMins: 60, joinUrl: '' },
+  ],
+};
+
+// Map an arbitrary parsed JSON object onto the form-state shape. Unknown fields
+// are ignored; missing fields fall back to the blank defaults. Dates are
+// normalised to the datetime-local format the inputs expect.
+const jsonToForm = (raw) => {
+  const base = blankEvent();
+  const s = (v, d) => (v === undefined || v === null ? d : v);
+  const sessions = Array.isArray(raw.sessions) && raw.sessions.length
+    ? raw.sessions.map(ss => ({
+        title:        s(ss.title, ''),
+        startsAt:     ss.startsAt ? toLocalInput(ss.startsAt) : '',
+        durationMins: s(ss.durationMins, 60),
+        joinUrl:      s(ss.joinUrl, ''),
+        recordingUrl: s(ss.recordingUrl, ''),
+      }))
+    : [blankSession()];
+
+  return {
+    ...base,
+    type:            raw.type === 'live-class' ? 'live-class' : (raw.type === 'workshop' ? 'workshop' : base.type),
+    title:           s(raw.title, ''),
+    slug:            s(raw.slug, ''),
+    description:     s(raw.description, ''),
+    thumbnail:       s(raw.thumbnail, ''),
+    course:          s(raw.course, ''),
+    isPaid:          !!s(raw.isPaid, false),
+    price:           Number(s(raw.price, 0)) || 0,
+    mrp:             Number(s(raw.mrp, 0)) || 0,
+    whatsappLink:    s(raw.whatsappLink, ''),
+    confirmationMsg: s(raw.confirmationMsg, base.confirmationMsg),
+    seatLimit:       Number(s(raw.seatLimit, 0)) || 0,
+    registrationClosesAt: raw.registrationClosesAt ? toLocalInput(raw.registrationClosesAt) : '',
+    sessions,
+  };
+};
+
+
 export default function EventsTab({ onChange }) {
   const [events, setEvents]   = useState([]);
   const [courses, setCourses] = useState([]);
@@ -41,6 +99,9 @@ export default function EventsTab({ onChange }) {
 
   const [viewingRegs, setViewingRegs] = useState(null);  // event whose attendees we're showing
   const [regs, setRegs] = useState([]);
+
+  const [showImport, setShowImport] = useState(false);   // JSON import panel toggle
+  const [pasteText, setPasteText]   = useState('');      // pasted JSON
 
   const load = useCallback(async () => {
     try {
@@ -80,6 +141,55 @@ export default function EventsTab({ onChange }) {
   const removeSession = (i) => setEditing(e => ({
     ...e, sessions: e.sessions.filter((_, idx) => idx !== i),
   }));
+
+  // ── JSON import / format helpers ──
+  // Parse text and load it into the form for review. Returns true on success.
+  const applyJson = (text) => {
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      setToast('That’s not valid JSON — check for a missing comma or quote.');
+      return false;
+    }
+    if (typeof parsed !== 'object' || Array.isArray(parsed)) {
+      setToast('JSON must be a single event object.');
+      return false;
+    }
+    setEditing(prev => ({
+      ...jsonToForm(parsed),
+      // keep the id if we were editing an existing event
+      _id: prev?._id,
+    }));
+    setShowImport(false);
+    setPasteText('');
+    setToast('Imported — review the fields below, then Save.');
+    return true;
+  };
+
+  const onUploadJson = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => applyJson(String(reader.result));
+    reader.onerror = () => setToast('Could not read that file.');
+    reader.readAsText(file);
+  };
+
+  const copyFormat = () => {
+    const txt = JSON.stringify(JSON_TEMPLATE, null, 2);
+    navigator.clipboard?.writeText(txt)
+      .then(() => setToast('Format copied — paste it into any AI to fill in.'))
+      .catch(() => setToast('Copy failed — use the download button instead.'));
+  };
+
+  const downloadFormat = () => {
+    const blob = new Blob([JSON.stringify(JSON_TEMPLATE, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'event-format.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  };
 
   const autoSlug = (title) => title.toLowerCase().trim()
     .replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').slice(0, 60);
@@ -298,6 +408,42 @@ export default function EventsTab({ onChange }) {
         <h2 style={{ fontSize: 18, margin: '14px 0 18px' }}>
           {e._id ? 'Edit event' : 'New live class / workshop'}
         </h2>
+
+        {/* ── Import from JSON (fill the form for review) ── */}
+        <div className="card" style={{ marginBottom: 18, background: 'var(--surface-2)' }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowImport(v => !v)}>
+              {showImport ? '▾ Import from JSON' : '▸ Import from JSON'}
+            </button>
+            <span className="small muted">Fill every field (incl. all sessions) from one file.</span>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={copyFormat}>Copy format</button>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={downloadFormat}>Download format</button>
+            </div>
+          </div>
+
+          {showImport && (
+            <div style={{ marginTop: 14 }}>
+              <label className="btn btn-ghost btn-sm" style={{ display: 'inline-block', cursor: 'pointer', marginBottom: 12 }}>
+                Upload .json file
+                <input type="file" accept="application/json,.json" style={{ display: 'none' }}
+                  onChange={ev => { onUploadJson(ev.target.files?.[0]); ev.target.value = ''; }} />
+              </label>
+              <p className="small muted" style={{ margin: '0 0 6px' }}>…or paste JSON here:</p>
+              <textarea
+                className="input" rows={7} value={pasteText}
+                onChange={ev => setPasteText(ev.target.value)}
+                placeholder='{ "type": "workshop", "title": "...", "sessions": [ ... ] }'
+                style={{ fontFamily: 'monospace', fontSize: 12.5, marginBottom: 10 }} />
+              <div>
+                <button type="button" className="btn btn-primary btn-sm"
+                  onClick={() => applyJson(pasteText)} disabled={!pasteText.trim()}>
+                  Load into form
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
 
         <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
