@@ -8,6 +8,7 @@ const SITE = 'https://learn.rajeevshivah.me';
 export default function Roadmap() {
   const { slug } = useParams();
   const [data, setData]       = useState(null);
+  const [promos, setPromos]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
 
@@ -16,6 +17,12 @@ export default function Roadmap() {
       .then(r => setData(r.data))
       .catch(err => setError(err.response?.data?.message || 'Roadmap not found'))
       .finally(() => setLoading(false));
+
+    // Featured promotions for this page (course/webinar). Independent call —
+    // if it fails or is empty, the page still works with its static funnel.
+    axios.get(`${API}/promotions/public/for-roadmap/${slug}`)
+      .then(r => setPromos(Array.isArray(r.data) ? r.data : []))
+      .catch(() => setPromos([]));
   }, [slug]);
 
   const handleDownload = async () => {
@@ -36,6 +43,15 @@ export default function Roadmap() {
     } catch {
       window.open(data.pdfUrl, '_blank', 'noopener,noreferrer');
     }
+  };
+
+  const fmtDate = (d) => {
+    if (!d) return '';
+    try {
+      return new Date(d).toLocaleString('en-IN', {
+        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+      });
+    } catch { return ''; }
   };
 
   if (loading) return <div style={s.page}><p style={s.muted}>Loading...</p></div>;
@@ -63,7 +79,37 @@ export default function Roadmap() {
         <p style={s.subtle}>No signup needed — yours to keep.</p>
       </div>
 
-      {/* FUNNEL — what else is here */}
+      {/* FEATURED PROMOTIONS — what's live right now (admin-controlled) */}
+      {promos.length > 0 && (
+        <div style={s.promoWrap}>
+          <h2 style={s.promoHeading}>
+            {promos.some(p => p.kind === 'event') ? '🔴 Happening now' : '✨ Featured for you'}
+          </h2>
+          <div style={s.promoList}>
+            {promos.map(p => (
+              <a key={p.id} href={`${SITE}${p.href}`} style={s.promoCard}>
+                {p.thumbnail
+                  ? <img src={p.thumbnail} alt="" style={s.promoThumb} />
+                  : <div style={{...s.promoThumb, ...s.promoThumbFallback}}>{p.kind === 'event' ? '🎥' : '📚'}</div>}
+                <div style={s.promoBody}>
+                  <div style={s.promoKind}>
+                    {p.kind === 'event' ? 'LIVE WEBINAR' : 'COURSE'}
+                    {p.kind === 'event' && p.startsAt && <span style={s.promoWhen}> · {fmtDate(p.startsAt)}</span>}
+                  </div>
+                  <h3 style={s.promoTitle}>{p.headline}</h3>
+                  {p.subtext && <p style={s.promoText}>{p.subtext}</p>}
+                  <span style={s.promoCta}>
+                    {p.ctaLabel} →
+                    {p.isPaid ? <span style={s.promoPrice}> ₹{p.price}</span> : <span style={s.promoFree}> FREE</span>}
+                  </span>
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* FUNNEL — static fallback / always-on context */}
       <div style={s.funnel}>
         <h2 style={s.funnelTitle}>While you're here…</h2>
         <p style={s.funnelLead}>
@@ -116,7 +162,24 @@ const s = {
   desc: { color:'#8899AA', fontSize:'16px', lineHeight:1.6, marginBottom:'28px' },
   downloadBtn: { background:'#4A9EFF', color:'#fff', border:'none', padding:'15px 34px', borderRadius:'12px', fontSize:'17px', fontWeight:700, cursor:'pointer' },
   subtle: { color:'#4A6A8A', fontSize:'13px', marginTop:'12px' },
-  funnel: { background:'#0c1424', borderTop:'1px solid #1e3a5f', padding:'48px 24px' },
+
+  // Promotions
+  promoWrap: { maxWidth:'720px', margin:'0 auto', padding:'8px 24px 8px' },
+  promoHeading: { fontSize:'15px', fontWeight:700, color:'#FF7A7A', textAlign:'center', letterSpacing:'0.5px', marginBottom:'16px' },
+  promoList: { display:'flex', flexDirection:'column', gap:'14px' },
+  promoCard: { display:'flex', gap:'14px', background:'#111827', border:'1px solid #2a4a6f', borderRadius:'14px', padding:'14px', textDecoration:'none', alignItems:'center', transition:'border-color .2s' },
+  promoThumb: { width:'84px', height:'84px', borderRadius:'10px', objectFit:'cover', flexShrink:0 },
+  promoThumbFallback: { display:'flex', alignItems:'center', justifyContent:'center', fontSize:'34px', background:'#0d2036' },
+  promoBody: { flex:1, minWidth:0 },
+  promoKind: { fontSize:'11px', fontWeight:700, color:'#4A9EFF', letterSpacing:'0.5px' },
+  promoWhen: { color:'#8899AA', fontWeight:600 },
+  promoTitle: { fontSize:'17px', fontWeight:700, color:'#fff', margin:'4px 0 4px' },
+  promoText: { fontSize:'13px', color:'#8899AA', lineHeight:1.4, margin:'0 0 8px' },
+  promoCta: { fontSize:'14px', fontWeight:700, color:'#4CAF7D' },
+  promoPrice: { color:'#FF9F45' },
+  promoFree: { color:'#4CAF7D' },
+
+  funnel: { background:'#0c1424', borderTop:'1px solid #1e3a5f', padding:'48px 24px', marginTop:'24px' },
   funnelTitle: { fontSize:'22px', fontWeight:700, textAlign:'center', marginBottom:'10px' },
   funnelLead: { color:'#8899AA', fontSize:'15px', lineHeight:1.6, textAlign:'center', maxWidth:'560px', margin:'0 auto 36px' },
   cards: { display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:'16px', maxWidth:'760px', margin:'0 auto 36px' },

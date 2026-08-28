@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import PaymentsTab from './admin/PaymentsTab';
 import CoursesTab  from './admin/CoursesTab';
@@ -23,6 +24,7 @@ const TABS = [
 ];
 
 export default function Admin() {
+  const navigate = useNavigate();
   const [tab, setTab] = useState('payments');
   const [pendingCount, setPendingCount] = useState(0);
   const [doubtCount, setDoubtCount] = useState(0);
@@ -50,7 +52,13 @@ export default function Admin() {
   return (
     <div className="page">
       <div className="container section">
-        <h1 style={{ fontSize: 24, marginBottom: 18 }}>Admin panel</h1>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
+          <h1 style={{ fontSize: 24, margin: 0 }}>Admin panel</h1>
+          <button className="btn" onClick={() => navigate('/admin/roadmaps')}
+            style={{ background: '#4A9EFF', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
+            🗺 Roadmaps &amp; Promotions →
+          </button>
+        </div>
 
         <div className="tabs">
           {TABS.map(t => (
