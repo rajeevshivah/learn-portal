@@ -32,6 +32,7 @@ router.get('/info/:slug', protect, asyncHandler(async (req, res) => {
     },
     upiId:   settings.upiId,
     upiName: settings.upiName,
+    paymentQrUrl: settings.paymentQrUrl || '',
     note:    settings.paymentNote,
     existing: existing ? {
       status: isExpired ? 'expired' : existing.status,

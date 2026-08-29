@@ -136,6 +136,7 @@ router.get('/public/:slug', asyncHandler(async (req, res) => {
       upiId:   settings.upiId,
       upiName: settings.upiName,
       note:    settings.paymentNote,
+      qrUrl:   settings.paymentQrUrl || '',
     };
   }
 
@@ -172,6 +173,7 @@ router.get('/:slug', protect, asyncHandler(async (req, res) => {
       upiId:   settings.upiId,
       upiName: settings.upiName,
       note:    settings.paymentNote,
+      qrUrl:   settings.paymentQrUrl || '',
     };
   }
 
@@ -480,4 +482,11 @@ router.post(
   })
 );
 
+// ── ADMIN: upload an event thumbnail image → returns Cloudinary URL ──
+router.post('/upload-image', protect, adminOnly, uploadImage.single('file'), asyncHandler(async (req, res) => {
+  if (!req.file) return res.status(400).json({ message: 'No image uploaded' });
+  res.json({ url: req.file.path });
+}));
+
 module.exports = router;
+

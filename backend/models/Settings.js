@@ -5,6 +5,7 @@ const settingsSchema = new mongoose.Schema({
   key:     { type: String, default: 'platform', unique: true },
   upiId:   { type: String, default: '', trim: true },   // e.g. rajeev@okaxis
   upiName: { type: String, default: 'codeWithShivah', trim: true },
+  paymentQrUrl: { type: String, default: '' },   // uploaded PhonePe/GPay QR image; overrides the generated QR when set
   paymentNote: {
     type: String,
     default: 'After paying, submit the UTR / transaction ID below. Access is unlocked after verification (usually within a few hours).',

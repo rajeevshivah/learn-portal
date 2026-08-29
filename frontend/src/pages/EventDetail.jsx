@@ -228,14 +228,16 @@ export default function EventDetail() {
                   {/* Scannable QR — works when paying from another phone / desktop */}
                   <div style={{ textAlign: 'center', marginTop: 14 }}>
                     <p className="small muted" style={{ marginBottom: 10 }}>
-                      Scan with any UPI app (amount pre-filled)
+                      Scan with any UPI app{event.payment.qrUrl ? '' : ' (amount pre-filled)'}
                     </p>
                     <div className="qr-box" style={{ display: 'inline-block' }}>
-                      <QRCodeSVG
-                        value={`upi://pay?pa=${encodeURIComponent(event.payment.upiId)}&pn=${encodeURIComponent(event.payment.upiName || '')}&am=${event.price}&cu=INR&tn=${encodeURIComponent(event.title)}`}
-                        size={180}
-                        level="M"
-                      />
+                      {event.payment.qrUrl
+                        ? <img src={event.payment.qrUrl} alt="Payment QR" style={{ width: 180, height: 180, objectFit: 'contain', display: 'block' }} />
+                        : <QRCodeSVG
+                            value={`upi://pay?pa=${encodeURIComponent(event.payment.upiId)}&pn=${encodeURIComponent(event.payment.upiName || '')}&am=${event.price}&cu=INR&tn=${encodeURIComponent(event.title)}`}
+                            size={180}
+                            level="M"
+                          />}
                     </div>
                   </div>
 

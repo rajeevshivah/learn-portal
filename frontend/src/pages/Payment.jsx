@@ -104,10 +104,12 @@ export default function Payment() {
               <span className="small muted" style={{ textDecoration: 'line-through', marginLeft: 10, fontWeight: 400 }}>₹{info.course.mrp}</span>
             )}
           </div>
-          <p className="small muted" style={{ marginBottom: 18 }}>Step 1 — scan with any UPI app (amount is pre-filled)</p>
+          <p className="small muted" style={{ marginBottom: 18 }}>Step 1 — scan with any UPI app{info.paymentQrUrl ? "" : " (amount is pre-filled)"}</p>
 
           <div className="qr-box">
-            <QRCodeSVG value={upiLink} size={200} level="M" />
+            {info.paymentQrUrl
+              ? <img src={info.paymentQrUrl} alt="Payment QR" style={{ width: 200, height: 200, objectFit: 'contain', display: 'block' }} />
+              : <QRCodeSVG value={upiLink} size={200} level="M" />}
           </div>
 
           <p className="small" style={{ marginTop: 14 }}>

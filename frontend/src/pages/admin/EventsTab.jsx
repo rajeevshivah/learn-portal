@@ -96,6 +96,7 @@ export default function EventsTab({ onChange }) {
 
   const [editing, setEditing] = useState(null);   // event object being edited, or null
   const [saving, setSaving]   = useState(false);
+  const [uploadingImg, setUploadingImg] = useState(false);
 
   const [viewingRegs, setViewingRegs] = useState(null);  // event whose attendees we're showing
   const [regs, setRegs] = useState([]);
@@ -130,6 +131,27 @@ export default function EventsTab({ onChange }) {
   });
 
   const set = (k, v) => setEditing(e => ({ ...e, [k]: v }));
+
+  // Upload a thumbnail image to Cloudinary, then store just the URL.
+  const uploadThumb = async (file) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { setToast('Please choose an image file'); return; }
+    setUploadingImg(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const { data } = await axios.post(`${API}/events/upload-image`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      set('thumbnail', data.url);
+      setToast('Image uploaded ✓');
+    } catch (err) {
+      setToast(err.response?.data?.message || 'Image upload failed');
+    } finally {
+      setUploadingImg(false);
+    }
+  };
+
 
   const setSession = (i, k, v) => setEditing(e => {
     const sessions = [...e.sessions];
@@ -495,6 +517,25 @@ export default function EventsTab({ onChange }) {
             <label className="small muted" style={{ display: 'block', marginBottom: 5 }}>Description</label>
             <textarea className="input" rows={4} style={{ width: '100%', resize: 'vertical' }}
               value={e.description} onChange={ev => set('description', ev.target.value)} />
+          </div>
+
+          <div>
+            <label className="small muted" style={{ display: 'block', marginBottom: 5 }}>Thumbnail image</label>
+            {e.thumbnail && (
+              <img src={e.thumbnail} alt="" style={{ width: '100%', maxWidth: 320, borderRadius: 8, marginBottom: 8, aspectRatio: '16/9', objectFit: 'cover', display: 'block' }} />
+            )}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <label className="btn btn-ghost btn-sm" style={{ cursor: 'pointer', margin: 0 }}>
+                {uploadingImg ? 'Uploading…' : (e.thumbnail ? 'Replace image' : 'Upload image')}
+                <input type="file" accept="image/*" style={{ display: 'none' }} disabled={uploadingImg}
+                  onChange={ev => uploadThumb(ev.target.files[0])} />
+              </label>
+              {e.thumbnail && (
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => set('thumbnail', '')}>Remove</button>
+              )}
+            </div>
+            <input className="input" style={{ marginTop: 8 }} placeholder="…or paste an image URL"
+              value={e.thumbnail} onChange={ev => set('thumbnail', ev.target.value)} />
           </div>
 
           {/* ── Sessions ── */}
