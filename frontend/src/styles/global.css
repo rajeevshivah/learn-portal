@@ -435,3 +435,207 @@ button { font-family: inherit; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+/* ═══════════════════════════════════════════════════════════
+   EVENT DETAIL — redesigned registration page
+   Append this to frontend/src/styles/global.css
+   All classes are namespaced .ed-* so nothing else is affected.
+   ═══════════════════════════════════════════════════════════ */
+
+.event-detail { padding-bottom: 40px; }
+
+/* ── Hero ── */
+.ed-hero {
+  position: relative;
+  overflow: hidden;
+  padding: 22px 0 34px;
+  border-bottom: 1px solid var(--border);
+  background:
+    radial-gradient(900px 380px at 78% -10%, var(--accent-soft), transparent 60%),
+    linear-gradient(180deg, var(--surface), var(--bg));
+}
+.ed-hero-glow {
+  position: absolute; inset: 0;
+  background: radial-gradient(600px 260px at 15% 120%, rgba(52,211,153,0.06), transparent 70%);
+  pointer-events: none;
+}
+.ed-back {
+  display: inline-block; color: var(--text-2); font-size: 13px;
+  text-decoration: none; margin-bottom: 18px;
+}
+.ed-back:hover { color: var(--text); }
+
+.ed-hero-grid {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 36px;
+  align-items: start;
+}
+.ed-hero-main { min-width: 0; }
+
+.ed-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+
+.ed-title {
+  font-family: var(--font-display);
+  font-size: 40px; line-height: 1.12; letter-spacing: -0.02em;
+  margin-bottom: 16px;
+  background: linear-gradient(180deg, var(--text), var(--text-2));
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.ed-desc {
+  color: var(--text-2); font-size: 16px; line-height: 1.7;
+  white-space: pre-wrap; max-width: 62ch; margin-bottom: 22px;
+}
+
+/* Quick facts */
+.ed-facts { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+.ed-fact {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 10px 14px;
+}
+.ed-fact-ico { font-size: 18px; }
+.ed-fact-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); }
+.ed-fact-value { font-size: 14px; font-weight: 600; color: var(--text); }
+
+/* Social proof */
+.ed-proof {
+  display: flex; align-items: center; gap: 12px;
+  font-size: 14px; color: var(--text-2);
+}
+.ed-proof strong { color: var(--text); }
+.ed-avatars { display: flex; }
+.ed-avatar {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 2px solid var(--surface);
+  background: linear-gradient(135deg, var(--accent), var(--success));
+  margin-left: -10px;
+}
+.ed-avatar:first-child { margin-left: 0; }
+
+/* ── Buy card ── */
+.ed-buy-wrap { position: sticky; top: 20px; }
+.ed-buy {
+  background: var(--surface);
+  border: 1px solid var(--border-hi);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.ed-buy-thumb {
+  width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block;
+  border-bottom: 1px solid var(--border);
+}
+.ed-buy-thumb--empty {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 54px;
+  background: radial-gradient(400px 200px at 50% 0%, var(--accent-soft), var(--surface-2));
+}
+.ed-buy-body { padding: 18px; }
+
+.ed-price-row { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.ed-price {
+  font-family: var(--font-display); font-weight: 800;
+  font-size: 32px; color: var(--text); letter-spacing: -0.02em;
+}
+.ed-price--free { color: var(--success); }
+.ed-mrp { font-size: 16px; color: var(--text-3); text-decoration: line-through; }
+
+.ed-seats { font-size: 13px; color: var(--text-2); margin-bottom: 12px; }
+.ed-seats--low { color: var(--warning); font-weight: 600; }
+.ed-seats--full { color: var(--danger); font-weight: 600; }
+
+.ed-cta { font-size: 15px; padding: 12px 18px; }
+.ed-cta:hover:not(:disabled) { transform: translateY(-1px); }
+
+.ed-includes {
+  list-style: none; margin: 16px 0 0; padding: 16px 0 0;
+  border-top: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 9px;
+}
+.ed-includes li {
+  position: relative; padding-left: 24px;
+  font-size: 13.5px; color: var(--text-2);
+}
+.ed-includes li::before {
+  content: '✓'; position: absolute; left: 0; top: 0;
+  color: var(--success); font-weight: 800;
+}
+
+/* ── Body grid (aligns with hero) ── */
+.ed-body-grid { display: grid; grid-template-columns: 1fr 360px; gap: 36px; align-items: start; }
+.ed-body-main { min-width: 0; }
+.ed-body-side { }  /* empty spacer on desktop */
+
+/* ── Section head ── */
+.ed-section-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 16px; }
+.ed-section-title {
+  font-family: var(--font-display); font-size: 20px; font-weight: 700;
+  letter-spacing: -0.01em; color: var(--text);
+}
+
+/* ── Schedule ── */
+.ed-schedule { display: flex; flex-direction: column; }
+.ed-sched-row {
+  display: flex; gap: 14px; align-items: flex-start;
+  padding: 14px 0; border-bottom: 1px solid var(--border);
+}
+.ed-sched-row:last-child { border-bottom: none; padding-bottom: 0; }
+.ed-sched-row:first-child { padding-top: 0; }
+.ed-sched-num {
+  width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-soft); color: var(--accent);
+  font-weight: 700; font-size: 13px;
+}
+.ed-sched-body { flex: 1; min-width: 0; }
+.ed-sched-title { font-weight: 600; font-size: 15px; margin-bottom: 2px; color: var(--text); }
+
+/* ── Register block ── */
+.ed-register { scroll-margin-top: 20px; }
+.ed-pay {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px; margin-bottom: 18px;
+}
+.ed-pay-upi { font-family: var(--font-display); font-weight: 700; font-size: 17px; color: var(--text); }
+
+/* ── Mobile sticky bar (hidden on desktop) ── */
+.ed-mobile-bar { display: none; }
+
+/* ═══════════ Responsive ═══════════ */
+@media (max-width: 900px) {
+  .ed-hero-grid { grid-template-columns: 1fr; gap: 22px; }
+  .ed-buy-wrap { position: static; }
+  .ed-buy { max-width: 420px; }
+  .ed-body-grid { grid-template-columns: 1fr; gap: 0; }
+  .ed-body-side { display: none; }
+  .ed-title { font-size: 30px; }
+  .ed-desc { font-size: 15px; }
+
+  /* On mobile, the sticky buy card is redundant with the bottom bar —
+     keep the card (it has the thumbnail + includes) but show the bar too. */
+  .ed-mobile-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 14px;
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    background: var(--surface); border-top: 1px solid var(--border-hi);
+    box-shadow: 0 -8px 24px rgba(0,0,0,0.3);
+  }
+  .ed-mobile-price { display: flex; align-items: baseline; gap: 8px; }
+  .ed-mobile-bar .ed-cta { flex-shrink: 0; }
+  .event-detail { padding-bottom: 90px; }  /* room for the bar */
+}
+
+@media (max-width: 480px) {
+  .ed-title { font-size: 25px; }
+  .ed-facts { gap: 8px; }
+  .ed-fact { padding: 8px 11px; }
+}
+
+/* ── LivePublic extras (public landing page) ── */
+.ed-brand {
+  font-family: var(--font-display); font-weight: 700; font-size: 20px;
+  color: var(--text); margin-bottom: 20px;
+}
+.ed-final-cta { text-align: center; }
+.ed-final-cta .ed-section-title { text-align: center; }

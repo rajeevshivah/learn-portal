@@ -82,120 +82,239 @@ export default function LivePublic() {
     );
   }
 
-  const multi = event.sessions?.length > 1;
+  const multi    = event.sessions?.length > 1;
+  const dayCount = event.sessions?.length || 0;
 
   const fmt = (d) => new Date(d).toLocaleString('en-IN', {
     weekday: 'short', day: 'numeric', month: 'short',
     hour: 'numeric', minute: '2-digit', hour12: true,
   });
+  const fmtShort = (d) => new Date(d).toLocaleString('en-IN', {
+    day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true,
+  });
+
+  const firstSession = event.sessions?.length
+    ? event.sessions.reduce((min, s) => (!min || new Date(s.startsAt) < new Date(min.startsAt) ? s : min), null)
+    : null;
+
+  const discountPct = (event.mrp > 0 && event.mrp > event.price)
+    ? Math.round(((event.mrp - event.price) / event.mrp) * 100)
+    : 0;
 
   const upiLink = event.isPaid && event.payment?.upiId
     ? `upi://pay?pa=${encodeURIComponent(event.payment.upiId)}&pn=${encodeURIComponent(event.payment.upiName || '')}&am=${event.price}&cu=INR&tn=${encodeURIComponent(event.title)}`
     : '';
 
-  return (
-    <div className="page">
-      <div className="container section" style={{ maxWidth: 780 }}>
-        {/* Simple brand header (no navbar — this is a public page) */}
-        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 20, marginBottom: 18 }}>
-          code<span style={{ color: 'var(--accent)' }}>With</span>Shivah
-        </div>
+  const seatsLow  = event.seatLimit > 0 && typeof event.seatsLeft === 'number' && event.seatsLeft > 0 && event.seatsLeft <= 8;
+  const seatsFull = event.seatLimit > 0 && event.seatsLeft === 0;
+  const isOpen    = event.registrationOpen;
 
-        {/* ── Header ── */}
-        <div className="card" style={{ marginBottom: 20 }}>
-          {event.thumbnail && (
-            <img src={event.thumbnail} alt="" style={{ borderRadius: 10, marginBottom: 14, width: '100%', aspectRatio: '16/9', objectFit: 'cover' }} />
-          )}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-            <span className="badge badge-muted">
-              {event.type === 'workshop' ? 'Workshop' : 'Live class'}
-            </span>
-            {multi && <span className="badge badge-muted">{event.sessions.length} days</span>}
-            {event.isPaid
-              ? <span className="badge badge-warning">₹{event.price}</span>
-              : <span className="badge badge-accent">Free</span>}
+  const loginHref = `/login?redirect=${encodeURIComponent(`/events/${slug}`)}`;
+
+  return (
+    <div className="page event-detail">
+      {/* ══════════ HERO ══════════ */}
+      <div className="ed-hero">
+        <div className="ed-hero-glow" />
+        <div className="container" style={{ maxWidth: 1080, position: 'relative' }}>
+          {/* Public brand header (no navbar on this page) */}
+          <div className="ed-brand">
+            code<span style={{ color: 'var(--accent)' }}>With</span>Shivah
           </div>
 
-          <h1 style={{ fontSize: 26, marginBottom: 10 }}>{event.title}</h1>
-          {event.description && (
-            <p className="muted small" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.65 }}>
-              {event.description}
-            </p>
-          )}
+          <div className="ed-hero-grid">
+            {/* Left: the pitch */}
+            <div className="ed-hero-main">
+              <div className="ed-chips">
+                <span className="badge badge-accent">
+                  {event.type === 'workshop' ? '🎯 Workshop' : '🎥 Live class'}
+                </span>
+                {multi && <span className="badge badge-muted">{dayCount} days</span>}
+                {event.isPaid
+                  ? <span className="badge badge-warning">₹{event.price}</span>
+                  : <span className="badge badge-success">Free</span>}
+              </div>
 
-          {event.seatLimit > 0 && typeof event.seatsLeft === 'number' && (
-            <p className="small" style={{ marginTop: 12, color: event.seatsLeft <= 5 ? 'var(--danger)' : 'var(--text-2)' }}>
-              {event.seatsLeft > 0 ? `${event.seatsLeft} seats left` : 'All seats are full'}
-            </p>
-          )}
-        </div>
+              <h1 className="ed-title">{event.title}</h1>
 
-        {/* ── Schedule ── */}
-        <div className="card" style={{ marginBottom: 20 }}>
-          <h2 style={{ fontSize: 15, marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-2)' }}>
-            Schedule
-          </h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {event.sessions.map((s, i) => (
-              <div key={s._id || i} style={{
-                display: 'flex', gap: 12, alignItems: 'flex-start',
-                paddingBottom: 10,
-                borderBottom: i < event.sessions.length - 1 ? '1px solid var(--border)' : 'none',
-              }}>
-                <div style={{
-                  width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: 'var(--surface-2)', color: 'var(--text-2)',
-                  fontWeight: 700, fontSize: 13,
-                }}>{i + 1}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14.5 }}>{s.title}</div>
-                  <div className="small muted">{fmt(s.startsAt)} · {s.durationMins} min</div>
+              {event.description && <p className="ed-desc">{event.description}</p>}
+
+              <div className="ed-facts">
+                {firstSession && (
+                  <div className="ed-fact">
+                    <span className="ed-fact-ico">📅</span>
+                    <div>
+                      <div className="ed-fact-label">Starts</div>
+                      <div className="ed-fact-value">{fmtShort(firstSession.startsAt)}</div>
+                    </div>
+                  </div>
+                )}
+                <div className="ed-fact">
+                  <span className="ed-fact-ico">🗓️</span>
+                  <div>
+                    <div className="ed-fact-label">Format</div>
+                    <div className="ed-fact-value">{dayCount} {dayCount === 1 ? 'session' : 'sessions'}, live</div>
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
 
-        {/* ── Paid preview: show them what they'll pay + QR (they still register after login) ── */}
-        {event.isPaid && event.payment?.upiId && (
-          <div className="card" style={{ marginBottom: 20 }}>
-            <div className="small muted" style={{ marginBottom: 6 }}>This is a paid session — ₹{event.price}</div>
-            <div style={{ textAlign: 'center', marginTop: 10 }}>
-              <div className="qr-box" style={{ display: 'inline-block' }}>
-                <QRCodeSVG value={upiLink} size={170} level="M" />
+            {/* Right: the buy card */}
+            <div className="ed-buy-wrap">
+              <div className="ed-buy card-hover">
+                {event.thumbnail
+                  ? <img className="ed-buy-thumb" src={event.thumbnail} alt={event.title} />
+                  : <div className="ed-buy-thumb ed-buy-thumb--empty">
+                      {event.type === 'workshop' ? '🎯' : '🎥'}
+                    </div>}
+
+                <div className="ed-buy-body">
+                  <div className="ed-price-row">
+                    {event.isPaid ? (
+                      <>
+                        <span className="ed-price">₹{event.price}</span>
+                        {discountPct > 0 && (
+                          <>
+                            <span className="ed-mrp">₹{event.mrp}</span>
+                            <span className="badge badge-success">{discountPct}% off</span>
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      <span className="ed-price ed-price--free">Free</span>
+                    )}
+                  </div>
+
+                  {seatsLow && <div className="ed-seats ed-seats--low">🔥 Only {event.seatsLeft} seats left</div>}
+                  {seatsFull && <div className="ed-seats ed-seats--full">All seats are full</div>}
+                  {!seatsLow && !seatsFull && event.seatLimit > 0 && typeof event.seatsLeft === 'number' && (
+                    <div className="ed-seats">{event.seatsLeft} seats available</div>
+                  )}
+
+                  {isOpen ? (
+                    <button className="btn btn-primary btn-block ed-cta" onClick={goRegister} style={{ marginTop: 4 }}>
+                      {event.isPaid ? `Register for ₹${event.price} →` : 'Register free →'}
+                    </button>
+                  ) : (
+                    <button className="btn btn-ghost btn-block" disabled style={{ marginTop: 4 }}>
+                      Registration closed
+                    </button>
+                  )}
+
+                  {isOpen && (
+                    <p className="small muted" style={{ textAlign: 'center', marginTop: 10 }}>
+                      Already have an account? <Link to={loginHref}>Sign in</Link>
+                    </p>
+                  )}
+
+                  <ul className="ed-includes">
+                    <li>Live, interactive sessions</li>
+                    <li>WhatsApp group access</li>
+                    {event.type === 'workshop' && <li>Practice-along, not just watching</li>}
+                    <li>Ask doubts directly</li>
+                  </ul>
+                </div>
               </div>
-              <p className="small muted" style={{ marginTop: 10 }}>
-                UPI: <strong style={{ color: 'var(--accent)', userSelect: 'all' }}>{event.payment.upiId}</strong>
-              </p>
-              <p className="small muted" style={{ marginTop: 4 }}>
-                Sign in to register and submit your payment — you'll get the WhatsApp group link after verification.
-              </p>
             </div>
           </div>
-        )}
-
-        {/* ── The one CTA ── */}
-        <div className="card" style={{ textAlign: 'center' }}>
-          {event.registrationOpen ? (
-            <>
-              <p className="small muted" style={{ marginBottom: 14 }}>
-                {event.isPaid
-                  ? 'Sign in to register for this session.'
-                  : 'Sign in to grab your free seat — takes 5 seconds.'}
-              </p>
-              <button className="btn btn-primary btn-block" onClick={goRegister}>
-                {event.isPaid ? `Register — ₹${event.price}` : 'Register free'}
-              </button>
-              <p className="small muted" style={{ marginTop: 12 }}>
-                Already have an account? <Link to={`/login?redirect=${encodeURIComponent(`/events/${slug}`)}`}>Sign in</Link>
-              </p>
-            </>
-          ) : (
-            <div className="empty-state">Registration is closed for this session.</div>
-          )}
         </div>
       </div>
+
+      {/* ══════════ BODY ══════════ */}
+      <div className="container section" style={{ maxWidth: 1080 }}>
+        <div className="ed-body-grid">
+          <div className="ed-body-main">
+
+            {/* ── Schedule ── */}
+            <div className="card" style={{ marginBottom: 20 }}>
+              <div className="ed-section-head">
+                <h2 className="ed-section-title">What we'll cover</h2>
+                <span className="small muted">{dayCount} {dayCount === 1 ? 'session' : 'sessions'}</span>
+              </div>
+              <div className="ed-schedule">
+                {event.sessions.map((s, i) => (
+                  <div key={s._id || i} className="ed-sched-row">
+                    <div className="ed-sched-num">{i + 1}</div>
+                    <div className="ed-sched-body">
+                      <div className="ed-sched-title">{s.title}</div>
+                      <div className="small muted">{fmt(s.startsAt)} · {s.durationMins} min</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* ── Paid preview: what they'll pay + QR (they register after login) ── */}
+            {event.isPaid && event.payment?.upiId && (
+              <div className="card" style={{ marginBottom: 20 }}>
+                <div className="ed-section-head">
+                  <h2 className="ed-section-title">Payment</h2>
+                  <span className="badge badge-warning">₹{event.price}</span>
+                </div>
+                <div className="ed-pay">
+                  <div style={{ textAlign: 'center' }}>
+                    <div className="qr-box" style={{ display: 'inline-block' }}>
+                      {event.payment.qrUrl
+                        ? <img src={event.payment.qrUrl} alt="Payment QR" style={{ width: 180, height: 180, objectFit: 'contain', display: 'block' }} />
+                        : <QRCodeSVG value={upiLink} size={180} level="M" />}
+                    </div>
+                    <p className="small muted" style={{ marginTop: 12 }}>
+                      UPI: <strong style={{ color: 'var(--accent)', userSelect: 'all' }}>{event.payment.upiId}</strong>
+                    </p>
+                    <p className="small muted" style={{ marginTop: 6, maxWidth: 380, marginInline: 'auto' }}>
+                      Sign in to register and submit your payment — you'll get the WhatsApp group link after verification.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Final CTA ── */}
+            <div className="card ed-final-cta">
+              {isOpen ? (
+                <>
+                  <h2 className="ed-section-title" style={{ marginBottom: 6 }}>
+                    {event.isPaid ? 'Ready to join?' : 'Grab your free seat'}
+                  </h2>
+                  <p className="small muted" style={{ marginBottom: 16 }}>
+                    {event.isPaid
+                      ? 'Sign in to register for this session.'
+                      : 'Sign in to grab your free seat — takes 5 seconds.'}
+                  </p>
+                  <button className="btn btn-primary btn-block ed-cta" onClick={goRegister}>
+                    {event.isPaid ? `Register — ₹${event.price} →` : 'Register free →'}
+                  </button>
+                  <p className="small muted" style={{ marginTop: 12, textAlign: 'center' }}>
+                    Already have an account? <Link to={loginHref}>Sign in</Link>
+                  </p>
+                </>
+              ) : (
+                <div className="empty-state">Registration is closed for this session.</div>
+              )}
+            </div>
+          </div>
+
+          <div className="ed-body-side" aria-hidden="true" />
+        </div>
+      </div>
+
+      {/* ══════════ MOBILE STICKY BAR ══════════ */}
+      {isOpen && (
+        <div className="ed-mobile-bar">
+          <div className="ed-mobile-price">
+            {event.isPaid ? (
+              <>
+                <span className="ed-price" style={{ fontSize: 20 }}>₹{event.price}</span>
+                {discountPct > 0 && <span className="ed-mrp">₹{event.mrp}</span>}
+              </>
+            ) : <span className="ed-price ed-price--free" style={{ fontSize: 20 }}>Free</span>}
+          </div>
+          <button className="btn btn-primary ed-cta" onClick={goRegister}>
+            {event.isPaid ? 'Register →' : 'Register free →'}
+          </button>
+        </div>
+      )}
+
       <Toast message={toast} onDone={() => setToast('')} />
     </div>
   );
