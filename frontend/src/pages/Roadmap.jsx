@@ -69,6 +69,11 @@ export default function Roadmap() {
 
   return (
     <div style={s.page}>
+      <style>{`@keyframes promoPulse {
+        0%   { box-shadow: 0 0 0 0 rgba(255,77,77,0.6); }
+        70%  { box-shadow: 0 0 0 8px rgba(255,77,77,0); }
+        100% { box-shadow: 0 0 0 0 rgba(255,77,77,0); }
+      }`}</style>
       {/* HERO — the magnet */}
       <div style={s.hero}>
         <div style={s.brand}><span style={{color:'#4A9EFF',fontWeight:700}}>codeWith</span><span style={{color:'#fff',fontWeight:700}}>Shivah</span></div>
@@ -83,14 +88,21 @@ export default function Roadmap() {
       {promos.length > 0 && (
         <div style={s.promoWrap}>
           <h2 style={s.promoHeading}>
-            {promos.some(p => p.kind === 'event') ? '🔴 Happening now' : '✨ Featured for you'}
+            {promos.some(p => p.kind === 'event')
+              ? <><span style={s.pulseDot} /> HAPPENING NOW</>
+              : <>✨ FEATURED FOR YOU</>}
           </h2>
           <div style={s.promoList}>
             {promos.map(p => (
-              <a key={p.id} href={`${SITE}${p.href}`} style={s.promoCard}>
-                {p.thumbnail
-                  ? <img src={p.thumbnail} alt="" style={s.promoThumb} />
-                  : <div style={{...s.promoThumb, ...s.promoThumbFallback}}>{p.kind === 'event' ? '🎥' : '📚'}</div>}
+              <a key={p.id} href={`${SITE}${p.href}`} style={s.promoCard}
+                 onMouseEnter={e => { e.currentTarget.style.borderColor = '#4A9EFF'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                 onMouseLeave={e => { e.currentTarget.style.borderColor = '#24304F'; e.currentTarget.style.transform = 'none'; }}>
+                <div style={s.promoThumbWrap}>
+                  {p.thumbnail
+                    ? <img src={p.thumbnail} alt="" style={s.promoThumb} />
+                    : <div style={{...s.promoThumb, ...s.promoThumbFallback}}>{p.kind === 'event' ? '🎥' : '📚'}</div>}
+                  {p.kind === 'event' && <span style={s.promoRibbon}>● LIVE</span>}
+                </div>
                 <div style={s.promoBody}>
                   <div style={s.promoKind}>
                     {p.kind === 'event' ? 'LIVE WEBINAR' : 'COURSE'}
@@ -98,9 +110,11 @@ export default function Roadmap() {
                   </div>
                   <h3 style={s.promoTitle}>{p.headline}</h3>
                   {p.subtext && <p style={s.promoText}>{p.subtext}</p>}
-                  <span style={s.promoCta}>
-                    {p.ctaLabel} →
-                    {p.isPaid ? <span style={s.promoPrice}> ₹{p.price}</span> : <span style={s.promoFree}> FREE</span>}
+                  <span style={s.promoCtaRow}>
+                    <span style={s.promoCta}>{p.ctaLabel} →</span>
+                    {p.isPaid
+                      ? <span style={s.promoPrice}>₹{p.price}</span>
+                      : <span style={s.promoFree}>FREE</span>}
                   </span>
                 </div>
               </a>
@@ -164,20 +178,24 @@ const s = {
   subtle: { color:'#4A6A8A', fontSize:'13px', marginTop:'12px' },
 
   // Promotions
-  promoWrap: { maxWidth:'720px', margin:'0 auto', padding:'8px 24px 8px' },
-  promoHeading: { fontSize:'15px', fontWeight:700, color:'#FF7A7A', textAlign:'center', letterSpacing:'0.5px', marginBottom:'16px' },
+  promoWrap: { maxWidth:'640px', margin:'0 auto', padding:'8px 24px 8px' },
+  promoHeading: { display:'flex', alignItems:'center', justifyContent:'center', gap:'8px', fontSize:'13px', fontWeight:800, color:'#FF7A7A', textAlign:'center', letterSpacing:'1.5px', marginBottom:'18px' },
+  pulseDot: { display:'inline-block', width:'9px', height:'9px', borderRadius:'50%', background:'#FF4D4D', boxShadow:'0 0 0 0 rgba(255,77,77,0.6)', animation:'promoPulse 1.6s infinite' },
   promoList: { display:'flex', flexDirection:'column', gap:'14px' },
-  promoCard: { display:'flex', gap:'14px', background:'#111827', border:'1px solid #2a4a6f', borderRadius:'14px', padding:'14px', textDecoration:'none', alignItems:'center', transition:'border-color .2s' },
-  promoThumb: { width:'84px', height:'84px', borderRadius:'10px', objectFit:'cover', flexShrink:0 },
-  promoThumbFallback: { display:'flex', alignItems:'center', justifyContent:'center', fontSize:'34px', background:'#0d2036' },
-  promoBody: { flex:1, minWidth:0 },
+  promoCard: { display:'flex', gap:'16px', background:'linear-gradient(135deg, #141d33, #0f1626)', border:'1px solid #24304F', borderRadius:'16px', padding:'16px', textDecoration:'none', alignItems:'stretch', transition:'border-color .2s, transform .2s', boxShadow:'0 4px 18px rgba(0,0,0,0.25)' },
+  promoThumbWrap: { position:'relative', flexShrink:0 },
+  promoThumb: { width:'132px', height:'99px', borderRadius:'12px', objectFit:'cover', display:'block' },
+  promoThumbFallback: { display:'flex', alignItems:'center', justifyContent:'center', fontSize:'40px', background:'radial-gradient(120px 80px at 50% 0%, #14335a, #0d2036)' },
+  promoRibbon: { position:'absolute', top:'8px', left:'8px', display:'inline-flex', alignItems:'center', gap:'4px', background:'rgba(255,45,45,0.92)', color:'#fff', fontSize:'10px', fontWeight:800, letterSpacing:'0.5px', padding:'3px 8px', borderRadius:'6px' },
+  promoBody: { flex:1, minWidth:0, display:'flex', flexDirection:'column' },
   promoKind: { fontSize:'11px', fontWeight:700, color:'#4A9EFF', letterSpacing:'0.5px' },
   promoWhen: { color:'#8899AA', fontWeight:600 },
-  promoTitle: { fontSize:'17px', fontWeight:700, color:'#fff', margin:'4px 0 4px' },
-  promoText: { fontSize:'13px', color:'#8899AA', lineHeight:1.4, margin:'0 0 8px' },
+  promoTitle: { fontSize:'18px', fontWeight:700, color:'#fff', margin:'5px 0 6px', lineHeight:1.25, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' },
+  promoText: { fontSize:'13px', color:'#8899AA', lineHeight:1.45, margin:'0 0 12px', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' },
+  promoCtaRow: { display:'flex', alignItems:'center', gap:'10px', marginTop:'auto' },
   promoCta: { fontSize:'14px', fontWeight:700, color:'#4CAF7D' },
-  promoPrice: { color:'#FF9F45' },
-  promoFree: { color:'#4CAF7D' },
+  promoPrice: { background:'rgba(255,159,69,0.14)', color:'#FF9F45', fontSize:'13px', fontWeight:800, padding:'3px 10px', borderRadius:'999px' },
+  promoFree: { background:'rgba(76,175,125,0.14)', color:'#4CAF7D', fontSize:'13px', fontWeight:800, padding:'3px 10px', borderRadius:'999px' },
 
   funnel: { background:'#0c1424', borderTop:'1px solid #1e3a5f', padding:'48px 24px', marginTop:'24px' },
   funnelTitle: { fontSize:'22px', fontWeight:700, textAlign:'center', marginBottom:'10px' },
