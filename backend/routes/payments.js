@@ -15,7 +15,8 @@ router.get('/info/:slug', protect, asyncHandler(async (req, res) => {
     return res.status(404).json({ message: 'Course not found' });
   }
   const settings = await Settings.get();
-  if (!settings.upiId) {
+  const onlineOn = Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET);
+  if (!settings.upiId && !onlineOn) {
     return res.status(503).json({ message: 'Payments are not configured yet. Please contact support.' });
   }
 

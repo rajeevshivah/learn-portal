@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { QRCodeSVG } from 'qrcode.react';
 import Toast from '../components/Toast';
+import { getRzpConfig, payWithRazorpay } from '../lib/razorpay';
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -22,6 +23,11 @@ export default function EventDetail() {
   // the reply shown after a successful submit
   const [reply, setReply] = useState(null);
 
+  // Razorpay (online payment) — falls back to manual UPI when switched off
+  const [rzpOn, setRzpOn] = useState(false);
+  const [showManual, setShowManual] = useState(false);
+  useEffect(() => { getRzpConfig().then(c => setRzpOn(Boolean(c.enabled))); }, []);
+
   const load = useCallback(async () => {
     try {
       const { data } = await axios.get(`${API}/events/${slug}`);
@@ -34,6 +40,25 @@ export default function EventDetail() {
   }, [slug]);
 
   useEffect(() => { load(); }, [load]);
+
+  const payOnline = async () => {
+    if (!form.phone.trim()) return setToast('Please add your WhatsApp number');
+    setSubmitting(true);
+    try {
+      const data = await payWithRazorpay({
+        kind: 'event',
+        id: event._id,
+        extra: { phone: form.phone, college: form.college, expectation: form.expectation },
+      });
+      setReply(data);
+      load();
+      setTimeout(() => document.getElementById('reg-status')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+    } catch (err) {
+      if (err.message !== 'cancelled') setToast(err.response?.data?.message || err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const submit = async () => {
     if (!form.phone.trim()) return setToast('Please add your WhatsApp number');
@@ -100,6 +125,8 @@ export default function EventDetail() {
     : '';
 
   const canRegister = !isActive && !isPending && event.registrationOpen;
+  // Paid event + Razorpay on + student hasn't chosen manual → one-click online flow
+  const online = event.isPaid && rzpOn && !showManual;
   const seatsLow = event.seatLimit > 0 && typeof event.seatsLeft === 'number' && event.seatsLeft > 0 && event.seatsLeft <= 8;
   const seatsFull = event.seatLimit > 0 && event.seatsLeft === 0;
 
@@ -327,13 +354,15 @@ export default function EventDetail() {
                   {isRejected ? 'Resubmit your registration' : 'Register now'}
                 </h2>
                 <p className="small muted" style={{ marginBottom: 18 }}>
-                  {event.isPaid
+                  {online
+                    ? `Fill this, pay ₹${event.price} securely, and get the WhatsApp group link instantly.`
+                    : event.isPaid
                     ? `Pay ₹${event.price}, then fill this form. Your seat is confirmed after we verify the payment.`
                     : 'Fill this and you will get the WhatsApp group link right away.'}
                 </p>
 
                 {/* Payment block for paid events */}
-                {event.isPaid && event.payment?.upiId && (
+                {event.isPaid && !online && event.payment?.upiId && (
                   <div className="ed-pay">
                     <div className="small muted" style={{ marginBottom: 6 }}>Pay ₹{event.price} to</div>
                     <div className="ed-pay-upi">{event.payment.upiId}</div>
@@ -387,7 +416,7 @@ export default function EventDetail() {
                       style={{ resize: 'vertical' }} />
                   </div>
 
-                  {event.isPaid && (
+                  {event.isPaid && !online && (
                     <>
                       <div>
                         <label className="label">UTR / Transaction ID *</label>
@@ -404,15 +433,41 @@ export default function EventDetail() {
                     </>
                   )}
 
-                  <button className="btn btn-primary btn-block ed-cta"
-                    disabled={submitting} onClick={submit}>
-                    {submitting
-                      ? 'Submitting…'
-                      : event.isPaid ? `Submit payment & register` : 'Register free →'}
-                  </button>
-                  <p className="small muted" style={{ textAlign: 'center' }}>
-                    Takes under a minute · No spam, just this session
-                  </p>
+                  {online ? (
+                    <>
+                      <button className="btn btn-primary btn-block ed-cta"
+                        disabled={submitting} onClick={payOnline}>
+                        {submitting ? 'Opening secure payment…' : `Pay ₹${event.price} & register →`}
+                      </button>
+                      <p className="small muted" style={{ textAlign: 'center' }}>
+                        🔒 Razorpay · UPI, cards, netbanking · International cards accepted
+                      </p>
+                      {event.payment?.upiId && (
+                        <button className="btn btn-ghost btn-sm" style={{ alignSelf: 'center' }}
+                          onClick={() => setShowManual(true)}>
+                          Prefer scanning a UPI QR manually?
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <button className="btn btn-primary btn-block ed-cta"
+                        disabled={submitting} onClick={submit}>
+                        {submitting
+                          ? 'Submitting…'
+                          : event.isPaid ? `Submit payment & register` : 'Register free →'}
+                      </button>
+                      {event.isPaid && rzpOn && (
+                        <button className="btn btn-ghost btn-sm" style={{ alignSelf: 'center' }}
+                          onClick={() => setShowManual(false)}>
+                          ← Pay online instead (instant confirmation)
+                        </button>
+                      )}
+                      <p className="small muted" style={{ textAlign: 'center' }}>
+                        Takes under a minute · No spam, just this session
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
             )}

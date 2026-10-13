@@ -4,6 +4,7 @@ import axios from 'axios';
 import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '../context/AuthContext';
 import Toast from '../components/Toast';
+import { getRzpConfig } from '../lib/razorpay';
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -11,11 +12,18 @@ const API = import.meta.env.VITE_API_URL;
 // header (which may hold a stale token) can never attach to this public call.
 const publicApi = axios.create();
 
+const useRzpOn = () => {
+  const [on, setOn] = useState(false);
+  useEffect(() => { getRzpConfig().then(c => setOn(Boolean(c.enabled))); }, []);
+  return on;
+};
+
 // PUBLIC webinar landing page — shareable on Instagram bio, WhatsApp, anywhere.
 // A logged-out visitor can see the full event and tap Register, which sends
 // them through Google login and straight back here to complete registration.
 export default function LivePublic() {
   const { slug } = useParams();
+  const rzpOn = useRzpOn();
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
 
@@ -244,8 +252,22 @@ export default function LivePublic() {
               </div>
             </div>
 
+            {/* ── Paid + Razorpay on: no QR here, they pay online after sign-in ── */}
+            {event.isPaid && rzpOn && (
+              <div className="card" style={{ marginBottom: 20 }}>
+                <div className="ed-section-head">
+                  <h2 className="ed-section-title">Payment</h2>
+                  <span className="badge badge-warning">₹{event.price}</span>
+                </div>
+                <p className="small muted" style={{ lineHeight: 1.65 }}>
+                  Sign in with Google, then pay securely via Razorpay — UPI, cards, netbanking or wallets.
+                  International cards accepted. Your seat and the WhatsApp group link are confirmed instantly.
+                </p>
+              </div>
+            )}
+
             {/* ── Paid preview: what they'll pay + QR (they register after login) ── */}
-            {event.isPaid && event.payment?.upiId && (
+            {event.isPaid && !rzpOn && event.payment?.upiId && (
               <div className="card" style={{ marginBottom: 20 }}>
                 <div className="ed-section-head">
                   <h2 className="ed-section-title">Payment</h2>
