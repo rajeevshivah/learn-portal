@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { QRCodeSVG } from 'qrcode.react';
 import Toast from '../components/Toast';
-import { getRzpConfig, payWithRazorpay } from '../lib/razorpay';
+import { getRzpConfig, payWithRazorpay, PAYMENT_HELP_TEXT } from '../lib/razorpay';
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -26,6 +26,7 @@ export default function EventDetail() {
   // Razorpay (online payment) — falls back to manual UPI when switched off
   const [rzpOn, setRzpOn] = useState(false);
   const [showManual, setShowManual] = useState(false);
+  const [payHelp, setPayHelp] = useState(false);
   useEffect(() => { getRzpConfig().then(c => setRzpOn(Boolean(c.enabled))); }, []);
 
   const load = useCallback(async () => {
@@ -44,6 +45,7 @@ export default function EventDetail() {
   const payOnline = async () => {
     if (!form.phone.trim()) return setToast('Please add your WhatsApp number');
     setSubmitting(true);
+    setPayHelp(false);
     try {
       const data = await payWithRazorpay({
         kind: 'event',
@@ -54,7 +56,8 @@ export default function EventDetail() {
       load();
       setTimeout(() => document.getElementById('reg-status')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
     } catch (err) {
-      if (err.message !== 'cancelled') setToast(err.response?.data?.message || err.message);
+      if (err.message === 'stuck') setPayHelp(true);
+      else if (err.message !== 'cancelled') setToast(err.response?.data?.message || err.message);
     } finally {
       setSubmitting(false);
     }
@@ -435,6 +438,10 @@ export default function EventDetail() {
 
                   {online ? (
                     <>
+                      <p className="small muted" style={{ lineHeight: 1.5 }}>
+                        Paying by UPI? Open your UPI app and approve the request within 5 minutes.
+                        Outside India? Choose <strong>Card</strong>.
+                      </p>
                       <button className="btn btn-primary btn-block ed-cta"
                         disabled={submitting} onClick={payOnline}>
                         {submitting ? 'Opening secure payment…' : `Pay ₹${event.price} & register →`}
@@ -442,6 +449,11 @@ export default function EventDetail() {
                       <p className="small muted" style={{ textAlign: 'center' }}>
                         🔒 Razorpay · UPI, cards, netbanking · International cards accepted
                       </p>
+                      {payHelp && (
+                        <p className="small" style={{ textAlign: 'center', color: 'var(--warning)', lineHeight: 1.5 }}>
+                          {PAYMENT_HELP_TEXT}
+                        </p>
+                      )}
                       {event.payment?.upiId && (
                         <button className="btn btn-ghost btn-sm" style={{ alignSelf: 'center' }}
                           onClick={() => setShowManual(true)}>

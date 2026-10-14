@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { QRCodeSVG } from 'qrcode.react';
 import Toast from '../components/Toast';
-import { getRzpConfig, payWithRazorpay } from '../lib/razorpay';
+import { getRzpConfig, payWithRazorpay, PAYMENT_HELP_TEXT } from '../lib/razorpay';
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -21,6 +21,7 @@ export default function Payment() {
   const [showManual, setShowManual] = useState(false);
   const [paying, setPaying] = useState(false);
   const [paid, setPaid] = useState(false);
+  const [payHelp, setPayHelp] = useState(false);
 
   useEffect(() => {
     axios.get(`${API}/payments/info/${slug}`)
@@ -35,11 +36,13 @@ export default function Payment() {
 
   const payOnline = async () => {
     setPaying(true);
+    setPayHelp(false);
     try {
       await payWithRazorpay({ kind: 'course', id: info.course.id });
       setPaid(true);
     } catch (err) {
-      if (err.message !== 'cancelled') setToast(err.response?.data?.message || err.message);
+      if (err.message === 'stuck') setPayHelp(true);
+      else if (err.message !== 'cancelled') setToast(err.response?.data?.message || err.message);
     } finally {
       setPaying(false);
     }
@@ -139,12 +142,21 @@ export default function Payment() {
             <p className="small muted" style={{ marginBottom: 18 }}>
               UPI · Cards · Netbanking · Wallets — international cards accepted
             </p>
+            <p className="small muted" style={{ marginBottom: 12, lineHeight: 1.5 }}>
+              Paying by UPI? Open your UPI app and approve the request within 5 minutes.
+              Outside India? Choose <strong>Card</strong>.
+            </p>
             <button className="btn btn-primary btn-block" onClick={payOnline} disabled={paying}>
               {paying ? 'Opening secure payment…' : `Pay ₹${info.course.price} & unlock now`}
             </button>
             <p className="small muted" style={{ marginTop: 12 }}>
               🔒 Secured by Razorpay · Access unlocks instantly
             </p>
+            {payHelp && (
+              <p className="small" style={{ marginTop: 10, color: 'var(--warning)', lineHeight: 1.5 }}>
+                {PAYMENT_HELP_TEXT}
+              </p>
+            )}
             {!showManual && info.upiId && (
               <button className="btn btn-ghost btn-sm" style={{ marginTop: 10 }} onClick={() => setShowManual(true)}>
                 Prefer scanning a UPI QR manually?
