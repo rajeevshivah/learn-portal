@@ -141,12 +141,19 @@ router.delete('/:id', protect, adminOnly, asyncHandler(async (req, res) => {
   const course = await Course.findById(req.params.id);
   if (!course) return res.status(404).json({ message: 'Course not found' });
 
-  const episodeCount = await Episode.countDocuments({ course: course._id });
-  if (episodeCount > 0) {
+  const lessons = await Episode.find({ course: course._id })
+    .select('episodeNumber title isPublished').sort({ episodeNumber: 1 });
+  if (lessons.length > 0) {
+    const names = lessons.slice(0, 5)
+      .map(l => `#${l.episodeNumber} ${l.title}${l.isPublished ? '' : ' (draft)'}`).join(', ');
     return res.status(400).json({
-      message: `Cannot delete — course still has ${episodeCount} episode(s). Move or delete them first.`,
+      message: `Cannot delete — this course still has ${lessons.length} lesson(s): ${names}${lessons.length > 5 ? '…' : ''}. ` +
+        'Delete them in Admin → Episodes first (Draft lessons count too).',
     });
   }
+  // A live event may still point its recordings at this course — unlink it.
+  await require('../models/LiveEvent').updateMany(
+    { recordingsCourse: course._id }, { $set: { recordingsCourse: null } });
   await Enrollment.deleteMany({ course: course._id });
   await course.deleteOne();
   res.json({ message: 'Course deleted' });
