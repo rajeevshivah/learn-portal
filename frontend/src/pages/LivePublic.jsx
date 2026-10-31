@@ -5,6 +5,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '../context/AuthContext';
 import Toast from '../components/Toast';
 import { getRzpConfig } from '../lib/razorpay';
+import { Testimonials } from '../components/Feedback';
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -290,6 +291,8 @@ export default function LivePublic() {
                 </div>
               </div>
             )}
+
+            <Testimonials title="What our students say" />
 
             {/* ── Final CTA ── */}
             <div className="card ed-final-cta">

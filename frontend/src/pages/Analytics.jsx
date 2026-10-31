@@ -16,7 +16,8 @@ export default function Analytics() {
   if (error) return <div className="spinner-page" style={{ color: 'var(--danger)' }}>{error}</div>;
   if (!data) return <div className="spinner-page">Loading analytics…</div>;
 
-  const { totals, perCourse, topEpisodes, recentUsers } = data;
+  const { totals, perCourse, perEvent = [], topEpisodes, recentUsers } = data;
+  const inr = (n) => `₹${(n || 0).toLocaleString('en-IN')}`;
 
   return (
     <div className="page">
@@ -25,12 +26,34 @@ export default function Analytics() {
 
         <div className="grid-stats" style={{ marginBottom: 26 }}>
           <div className="card"><div className="stat-value" style={{ color: 'var(--success)' }}>₹{totals.revenue.toLocaleString('en-IN')}</div><div className="stat-label">Total revenue</div></div>
-          <div className="card"><div className="stat-value">{totals.sales}</div><div className="stat-label">Course sales</div></div>
+          <div className="card"><div className="stat-value">{inr(totals.webinarRevenue)}</div><div className="stat-label">Webinars · {totals.webinarSales ?? 0} sales</div></div>
+          <div className="card"><div className="stat-value">{inr(totals.courseRevenue ?? totals.revenue)}</div><div className="stat-label">Courses · {totals.courseSales ?? totals.sales} sales</div></div>
           <div className="card"><div className="stat-value">{totals.students}</div><div className="stat-label">Students</div></div>
           <div className="card"><div className="stat-value">{totals.enrollments}</div><div className="stat-label">Active enrollments</div></div>
           <div className="card"><div className="stat-value" style={{ color: totals.pendingPayments > 0 ? 'var(--warning)' : 'inherit' }}>{totals.pendingPayments}</div><div className="stat-label">Pending payments</div></div>
           <div className="card"><div className="stat-value">{totals.episodes}</div><div className="stat-label">Episodes</div></div>
         </div>
+
+        {perEvent.length > 0 && (
+          <>
+            <h2 style={{ fontSize: 17, marginBottom: 12 }}>Live webinars</h2>
+            <div className="table-wrap" style={{ marginBottom: 26 }}>
+              <table className="table">
+                <thead><tr><th>Webinar</th><th>Price</th><th>Paid students</th><th>Revenue</th></tr></thead>
+                <tbody>
+                  {perEvent.map(e => (
+                    <tr key={e.id}>
+                      <td style={{ fontWeight: 600 }}>{e.title}</td>
+                      <td>{e.isPaid ? `₹${e.price}` : 'Free'}</td>
+                      <td>{e.sales}</td>
+                      <td style={{ fontWeight: 600, color: e.revenue > 0 ? 'var(--success)' : 'inherit' }}>{inr(e.revenue)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
 
         <h2 style={{ fontSize: 17, marginBottom: 12 }}>Courses</h2>
         <div className="table-wrap" style={{ marginBottom: 26 }}>

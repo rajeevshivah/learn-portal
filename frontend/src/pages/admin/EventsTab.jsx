@@ -197,6 +197,100 @@ function RecordingsPanel({ ev, courses = [], onSaved, setToast }) {
   );
 }
 
+// ── Feedback panel: per-class ratings, comments, featuring testimonials ──
+function FeedbackPanel({ ev, setToast }) {
+  const [summary, setSummary] = useState(null);
+  const [rows, setRows] = useState([]);
+  const [filter, setFilter] = useState('comments'); // comments | low | consented | featured
+  const [session, setSession] = useState('');
+  const [busy, setBusy] = useState('');
+
+  const load = useCallback(async () => {
+    const params = { event: ev._id };
+    if (session) params.session = session;
+    if (filter === 'comments') params.withComment = '1';
+    if (filter === 'low') params.maxRating = 3;
+    if (filter === 'consented') { params.consented = '1'; params.withComment = '1'; }
+    if (filter === 'featured') params.featured = '1';
+    try {
+      const [s, l] = await Promise.all([
+        axios.get(`${API}/feedback/admin/summary/${ev._id}`),
+        axios.get(`${API}/feedback/admin/list`, { params }),
+      ]);
+      setSummary(s.data); setRows(l.data);
+    } catch (err) { setToast(err.response?.data?.message || 'Could not load feedback'); }
+  }, [ev._id, filter, session, setToast]);
+  useEffect(() => { load(); }, [load]);
+
+  const act = async (f, body, msg) => {
+    setBusy(f._id);
+    try { await axios.put(`${API}/feedback/admin/${f._id}`, body); setToast(msg); load(); }
+    catch (err) { setToast(err.response?.data?.message || 'Could not update'); }
+    finally { setBusy(''); }
+  };
+  const color = (a) => a == null ? 'var(--border-hi)' : a >= 4.3 ? 'var(--success)' : a >= 3.5 ? 'var(--warning)' : 'var(--danger)';
+
+  if (!summary) return <div className="small muted" style={{ marginTop: 12 }}>Loading feedback…</div>;
+  const started = summary.classes.filter(c => c.started);
+
+  return (
+    <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+      <div className="small muted" style={{ marginBottom: 10 }}>
+        {summary.confirmedStudents} confirmed students.
+        Program review: {summary.program.count ? `${summary.program.average} ★ from ${summary.program.count}` : 'none yet (opens halfway through)'}.
+        Testimonials appear on public webinar pages only if the student allowed it and you feature them.
+      </div>
+
+      {started.length === 0 ? (
+        <div className="small muted">No classes have started yet. Ratings appear here from the first class.</div>
+      ) : (
+        <div className="fbx-bars" style={{ marginBottom: 14 }}>
+          {started.map(c => (
+            <button key={c.sessionId} type="button" className="fbx-bar-row"
+              style={{ background: session === String(c.sessionId) ? 'var(--surface-2)' : 'none', border: 0, color: 'inherit', cursor: 'pointer', textAlign: 'left', padding: '2px 4px', borderRadius: 6 }}
+              title={c.title} onClick={() => setSession(session === String(c.sessionId) ? '' : String(c.sessionId))}>
+              <span>Class {c.number}</span>
+              <span className="fbx-bar"><span style={{ width: `${c.average ? (c.average / 5) * 100 : 0}%`, background: color(c.average) }} /></span>
+              <span className="small">{c.count ? `${c.average} ★ · ${c.count}` : 'no ratings'}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+        {[['comments', 'With comments'], ['low', '3★ or less'], ['consented', 'Can be featured'], ['featured', 'Featured']].map(([k, label]) => (
+          <button key={k} type="button" className={`btn btn-sm ${filter === k ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setFilter(k)}>{label}</button>
+        ))}
+        {session && <button type="button" className="btn btn-sm btn-ghost" onClick={() => setSession('')}>✕ All classes</button>}
+      </div>
+
+      {rows.length === 0 ? <div className="small muted">Nothing here yet.</div> : rows.map(f => (
+        <div key={f._id} className="fbx-comment" style={{ opacity: f.hidden ? 0.5 : 1 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+            <span className="small"><strong style={{ color: '#FBBF24' }}>{'★'.repeat(f.rating)}</strong>{' '}
+              <strong>{f.student}</strong> <span className="muted">· {f.classTitle}</span></span>
+            <span className="small muted">{new Date(f.updatedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+          </div>
+          {f.comment && <div style={{ fontSize: 14 }}>{f.comment}</div>}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {f.consentToFeature && f.comment && !f.hidden && (
+              <button type="button" className={`btn btn-sm ${f.featured ? 'btn-primary' : 'btn-ghost'}`} disabled={busy === f._id}
+                onClick={() => act(f, { featured: !f.featured }, f.featured ? 'Removed from website' : 'Featured on webinar pages ✓')}>
+                {f.featured ? '★ Featured' : '☆ Feature on website'}
+              </button>
+            )}
+            {!f.consentToFeature && f.comment && <span className="small muted">Private: student didn't allow publishing</span>}
+            <button type="button" className="btn btn-sm btn-ghost" disabled={busy === f._id}
+              onClick={() => act(f, { hidden: !f.hidden }, f.hidden ? 'Restored' : 'Hidden from stats')}>
+              {f.hidden ? 'Unhide' : 'Hide'}
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function EventsTab({ onChange }) {
   const [events, setEvents]   = useState([]);
   const [courses, setCourses] = useState([]);
@@ -211,6 +305,7 @@ export default function EventsTab({ onChange }) {
   const [regs, setRegs] = useState([]);
 
   const [recordingsFor, setRecordingsFor] = useState(null); // event id whose recordings panel is open
+  const [feedbackFor, setFeedbackFor] = useState(null);     // event id whose feedback panel is open
   const [showImport, setShowImport] = useState(false);   // JSON import panel toggle
   const [pasteText, setPasteText]   = useState('');      // pasted JSON
 
@@ -886,6 +981,10 @@ export default function EventsTab({ onChange }) {
                     onClick={() => setRecordingsFor(recordingsFor === ev._id ? null : ev._id)}>
                     🎥 Recordings
                   </button>
+                  <button className="btn btn-ghost btn-sm"
+                    onClick={() => setFeedbackFor(feedbackFor === ev._id ? null : ev._id)}>
+                    ⭐ Feedback
+                  </button>
                   <button className="btn btn-ghost btn-sm" onClick={() => startEdit(ev)}>Edit</button>
                   <button className="btn btn-ghost btn-sm" onClick={() => remove(ev)}
                     style={{ color: 'var(--danger)' }}>Delete</button>
@@ -894,6 +993,7 @@ export default function EventsTab({ onChange }) {
               {recordingsFor === ev._id && (
                 <RecordingsPanel key={ev._id + (ev.updatedAt || '')} ev={ev} courses={courses} onSaved={load} setToast={setToast} />
               )}
+              {feedbackFor === ev._id && <FeedbackPanel ev={ev} setToast={setToast} />}
             </div>
           ))}
         </div>

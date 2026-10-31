@@ -1,29 +1,124 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import ProgressBar from '../components/ProgressBar';
 import MentorHubSection from '../components/MentorHubSection';
 import PollModal from '../components/PollModal';
 import SuggestBox from '../components/SuggestBox';
+import { FeedbackPrompt } from '../components/Feedback';
 
 const API = import.meta.env.VITE_API_URL;
+const JOIN_EARLY_MS = 15 * 60000;   // Join button opens 15 min before class
 
-// Live countdown parts for a target date; returns null once it's in the past.
-function countdownParts(target) {
-  if (!target) return null;
-  const diff = new Date(target) - new Date();
-  if (diff <= 0) return null;
-  const d = Math.floor(diff / 86400000);
-  const h = Math.floor((diff % 86400000) / 3600000);
-  const m = Math.floor((diff % 3600000) / 60000);
-  const s = Math.floor((diff % 60000) / 1000);
-  return { d, h, m, s };
+const endOf = (s) => new Date(s.startsAt).getTime() + (s.durationMins || 60) * 60000;
+const byStart = (a, b) => new Date(a.startsAt) - new Date(b.startsAt);
+const cleanTitle = (t = '') => t.replace(/^Day \d+\s*[—–-]\s*/i, '');
+const fmtTime = (d) => new Date(d).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }).toUpperCase();
+const fmtDay = (d) => new Date(d).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+const fmtEvent = (d) => d ? `${fmtDay(d)}, ${fmtTime(d)}` : '';
+const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
+
+// "in 2 days" / "in 3h 20m" / "in 42 min"
+function startsIn(target) {
+  const diff = new Date(target) - Date.now();
+  if (diff <= 0) return '';
+  const mins = Math.ceil(diff / 60000);
+  if (mins < 60) return `in ${mins} min`;
+  const h = Math.floor(mins / 60);
+  if (h < 24) return `in ${h}h ${mins % 60}m`;
+  const d = Math.round(h / 24);
+  return `in ${d} day${d > 1 ? 's' : ''}`;
 }
+
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 5) return 'Up late';
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
+function RecLink({ s, children, ...rest }) {
+  if (s.publishedEpisode) return <Link to={`/episodes/${s.publishedEpisode}`} {...rest}>{children}</Link>;
+  return <a href={s.recordingUrl} target="_blank" rel="noreferrer" {...rest}>{children}</a>;
+}
+
+// Course cover: the real thumbnail, or a typographic cover built from the title.
+function Cover({ course }) {
+  if (course.thumbnail) return <img className="db-cover" src={course.thumbnail} alt="" loading="lazy" />;
+  const label = (course.title || '').split(/\s[—–-]\s|:|,/)[0].trim();
+  const hue = [...(course.title || 'x')].reduce((n, c) => n + c.charCodeAt(0), 0) % 3;
+  return (
+    <div className={`db-cover db-cover-type db-cover-${hue}`} aria-hidden="true">
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function Bar({ completed = 0, total = 0 }) {
+  const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+  return (
+    <div className="db-bar" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+      <i style={{ width: `${pct}%` }} />
+    </div>
+  );
+}
+
+// ── The class ticket: tonight's (or the next) class for a registered program ──
+function ClassTicket({ t }) {
+  const { event, session, number, total, lastRec } = t;
+  const now = Date.now();
+  const start = new Date(session.startsAt).getTime();
+  const live = now >= start && now < endOf(session);
+  const joinOpen = now >= start - JOIN_EARLY_MS && now < endOf(session);
+  const today = sameDay(session.startsAt, now);
+  const when = live ? 'Live now' : `Starts ${startsIn(session.startsAt)}`;
+
+  return (
+    <section className={`ticket ${live ? 'is-live' : ''}`} aria-label="Your next class">
+      <div className="ticket-main">
+        <Link to={`/events/${event.slug}`} className="ticket-program">{event.title}</Link>
+        <h2 className="ticket-title">{cleanTitle(session.title)}</h2>
+        <div className="ticket-when">
+          <span className="ticket-time">{fmtTime(session.startsAt)}</span>
+          <span className="ticket-date">
+            {today ? 'Today' : fmtDay(session.startsAt)}
+            <span className={`ticket-in ${live ? 'live' : ''}`}>{live && <i className="ticket-dot" />}{when}</span>
+          </span>
+        </div>
+        <div className="ticket-actions">
+          {session.joinUrl && joinOpen ? (
+            <a className="btn ticket-join" href={session.joinUrl} target="_blank" rel="noreferrer">Join class</a>
+          ) : (
+            <span className="ticket-join-wait">
+              {session.joinUrl ? `Join opens at ${fmtTime(start - JOIN_EARLY_MS)}` : 'Join link appears here before class'}
+            </span>
+          )}
+          {event.whatsappLink && (
+            <a className="btn btn-ghost btn-sm" href={event.whatsappLink} target="_blank" rel="noreferrer">WhatsApp group</a>
+          )}
+        </div>
+      </div>
+      <div className="ticket-stub">
+        <div className="ticket-num">
+          <span className="ticket-num-big">{number}</span>
+          <span className="ticket-num-of">of {total}</span>
+        </div>
+        <span className="ticket-num-lbl">Class</span>
+        {lastRec && (
+          <RecLink s={lastRec} className="ticket-rec">
+            <span className="ticket-rec-play" aria-hidden="true">▶</span>
+            <span>Missed class {lastRec.number}? Watch the recording</span>
+          </RecLink>
+        )}
+      </div>
+    </section>
+  );
+}
+
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [enrollments, setEnrollments] = useState([]);
   const [summary, setSummary] = useState({});
   const [explore, setExplore] = useState([]);
@@ -35,9 +130,9 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [, setTick] = useState(0);                   // drives the live countdown
 
-  // tick every second so the hero countdown stays live
+  // re-render every 20s so the class countdown + Join button stay current
   useEffect(() => {
-    const id = setInterval(() => setTick(t => t + 1), 1000);
+    const id = setInterval(() => setTick(t => t + 1), 20000);
     return () => clearInterval(id);
   }, []);
 
@@ -86,7 +181,13 @@ export default function Dashboard() {
     axios.get(`${API}/polls/active`).then(({ data }) => data && setPoll(data)).catch(() => {});
   };
 
-  if (loading) return <div className="spinner-page">Loading your dashboard…</div>;
+  if (loading) {
+    return (
+      <div className="page"><div className="container section db" aria-busy="true">
+        <div className="skel skel-h1" /><div className="skel skel-ticket" /><div className="skel skel-row" />
+      </div></div>
+    );
+  }
 
   const now = new Date();
   const isExpired = (e) => e.expiresAt && new Date(e.expiresAt) <= now;
@@ -101,7 +202,7 @@ export default function Dashboard() {
     .filter(x => x.s && x.s.total > 0 && x.s.completed < x.s.total)
     .sort((a, b) => new Date(b.s.lastActivity) - new Date(a.s.lastActivity))[0];
 
-  // ── Live events split into "I'm registered" vs "new / not registered yet" ──
+  // ── Live programs ──
   const regByEvent = {};
   myRegs.forEach(r => { if (r.event?._id) regByEvent[String(r.event._id)] = r; });
 
@@ -112,307 +213,214 @@ export default function Dashboard() {
       (r.status === 'active' && (r.event.sessions || []).some(x => x.recordingUrl))
     )
   );
-  // Show ONLY events that are still open for registration and the student
-  // hasn't registered for yet. (registrationOpen is computed server-side.)
+  const pendingRegs = myLiveRegs.filter(r => r.status === 'pending');
+
+  // Per program: next class, class number, latest recording
+  const programs = myLiveRegs.filter(r => r.status === 'active').map(r => {
+    const ss = [...(r.event.sessions || [])].sort(byStart).map((s, i) => ({ ...s, number: i + 1 }));
+    const next = ss.find(s => endOf(s) > Date.now());
+    const done = ss.filter(s => endOf(s) <= Date.now()).length;
+    const recs = ss.filter(s => s.recordingUrl);
+    const lastRec = recs[recs.length - 1];
+    return { reg: r, event: r.event, sessions: ss, next, done, recs, lastRec };
+  });
+
+  // The ticket = the soonest upcoming class across all programs
+  const ticketProg = programs.filter(p => p.next && !p.event.isCompleted)
+    .sort((a, b) => byStart(a.next, b.next))[0];
+  const ticket = ticketProg && {
+    event: ticketProg.event, session: ticketProg.next, number: ticketProg.next.number,
+    total: ticketProg.sessions.length, lastRec: ticketProg.lastRec,
+  };
+
+  // Programs still open for registration that this student hasn't joined
   const newEvents = events
     .filter(e => !regByEvent[String(e._id)] && e.registrationOpen)
     .sort((a, b) => new Date(a.startsAt || 0) - new Date(b.startsAt || 0));
 
-  // The soonest one becomes the attention-grabbing hero; the rest are cards.
-  const heroEvent = newEvents[0];
-  const restEvents = newEvents.slice(1);
-  const heroCountdown = countdownParts(heroEvent?.startsAt);
+  const ticketLive = ticket && Date.now() >= new Date(ticket.session.startsAt).getTime();
+  const subtitle = ticketLive ? `Class ${ticket.number} is live now.`
+    : ticket && sameDay(ticket.session.startsAt, now)
+    ? `Class ${ticket.number} is today at ${fmtTime(ticket.session.startsAt)}.`
+    : continueCourse ? 'Pick up where you left off.' : 'Here’s everything in one place.';
 
-  const fmtEvent = (d) => d ? new Date(d).toLocaleString('en-IN', {
-    weekday: 'short', day: 'numeric', month: 'short',
-    hour: 'numeric', minute: '2-digit', hour12: true,
-  }) : '';
+  const notices = [
+    ...pendingRegs.map(r => ({ key: r._id, tone: 'warn', title: `Verifying your payment for ${r.event.title}`, body: 'Your seat is confirmed as soon as it’s verified, usually within a few hours.' })),
+    ...pending.map(p => ({ key: p._id, tone: 'warn', title: `Verifying your payment for ${p.course.title}`, body: 'Access unlocks after verification, usually within a few hours.' })),
+    ...expired.map(r => ({ key: r._id, tone: 'warn', title: `Access ended for ${r.course.title}`, body: `Ended on ${new Date(r.expiresAt).toLocaleDateString('en-IN', { dateStyle: 'medium' })}.`, link: { to: `/pay/${r.course.slug}`, label: 'Renew access' } })),
+    ...rejected.map(r => ({ key: r._id, tone: 'bad', title: `Payment not verified for ${r.course.title}`, body: r.rejectReason || 'We couldn’t match your payment.', link: { to: `/pay/${r.course.slug}`, label: 'Resubmit payment' } })),
+  ];
 
   return (
     <div className="page">
-      {pollOpen && poll && (
-        <PollModal poll={poll} onClose={handlePollClose} />
-      )}
-      <div className="container section">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
-          {user.avatar && (
-            <img src={user.avatar} alt={user.name} referrerPolicy="no-referrer"
-              style={{ width: 52, height: 52, borderRadius: '50%', border: '2px solid var(--accent)' }} />
-          )}
-          <div>
-            <h1 style={{ fontSize: 24, marginBottom: 2 }}>
-              Namaste, {user.name.split(' ')[0]} 👋
-            </h1>
-            <p className="muted small">Pick up where you left off.</p>
-          </div>
-        </div>
+      {pollOpen && poll && <PollModal poll={poll} onClose={handlePollClose} />}
 
-        {/* Compact poll reminder once the modal has been handled this session */}
-        {poll && !pollOpen && (
-          <div className="poll-strip">
-            <span>📊</span>
-            <span className="poll-strip-q">
-              {poll.hasVoted ? 'Thanks for voting!' : 'We’d love your vote:'} {poll.question}
-            </span>
-            <button className="poll-strip-open" onClick={() => setPollOpen(true)}>
-              {poll.hasVoted ? 'See results →' : 'Vote now →'}
-            </button>
+      <div className="container section db">
+        <header className="db-hello">
+          <h1>{greeting()}, {user.name.split(' ')[0]}</h1>
+          <p>{subtitle}</p>
+        </header>
+
+        {notices.length > 0 && (
+          <div className="db-notices">
+            {notices.map(n => (
+              <div key={n.key} className={`db-notice db-notice-${n.tone}`} role="status">
+                <strong>{n.title}</strong>
+                <span>{n.body}{n.link && <> <Link to={n.link.to}>{n.link.label}</Link></>}</span>
+              </div>
+            ))}
           </div>
         )}
 
-        {answered.length > 0 && (
-          <div className="card" style={{ borderColor: 'var(--accent)', marginBottom: 20 }}>
-            <strong style={{ color: 'var(--accent)' }}>Rajeev sir answered your doubt{answered.length > 1 ? 's' : ''} ✅</strong>
-            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {answered.map(q => (
-                <p key={q._id} className="small muted">
-                  <Link to={`/episodes/${q.episode?._id || q.episode}`}>
-                    #{q.episode?.episodeNumber} {q.episode?.title || 'Lesson'}
-                  </Link>
-                  {q.course?.title ? ` — ${q.course.title}` : ''} · answered{' '}
-                  {new Date(q.answeredAt).toLocaleDateString('en-IN', { dateStyle: 'medium' })}
-                </p>
-              ))}
-            </div>
-          </div>
-        )}
+        <div className="db-grid">
+          <div className="db-main">
+            {ticket && <ClassTicket t={ticket} />}
 
-        {pending.length > 0 && (
-          <div className="card" style={{ borderColor: 'var(--warning)', marginBottom: 20 }}>
-            <strong style={{ color: 'var(--warning)' }}>Payment under verification</strong>
-            <p className="small muted" style={{ marginTop: 4 }}>
-              {pending.map(p => p.course.title).join(', ')} — access unlocks after verification, usually within a few hours.
-            </p>
-          </div>
-        )}
+            <FeedbackPrompt />
 
-        {expired.map(r => (
-          <div key={r._id} className="card" style={{ borderColor: 'var(--warning)', marginBottom: 20 }}>
-            <strong style={{ color: 'var(--warning)' }}>Access expired — {r.course.title}</strong>
-            <p className="small muted" style={{ marginTop: 4 }}>
-              Your access ended on {new Date(r.expiresAt).toLocaleDateString('en-IN', { dateStyle: 'medium' })}.{' '}
-              <Link to={`/pay/${r.course.slug}`}>Renew access →</Link>
-            </p>
-          </div>
-        ))}
-
-        {rejected.map(r => (
-          <div key={r._id} className="card" style={{ borderColor: 'var(--danger)', marginBottom: 20 }}>
-            <strong style={{ color: 'var(--danger)' }}>Payment issue — {r.course.title}</strong>
-            <p className="small muted" style={{ marginTop: 4 }}>
-              {r.rejectReason || 'Your payment could not be verified.'}{' '}
-              <Link to={`/pay/${r.course.slug}`}>Resubmit payment →</Link>
-            </p>
-          </div>
-        ))}
-
-        {continueCourse && (
-          <div className="card card-hover" style={{ marginBottom: 26, borderColor: 'var(--accent)' }}>
-            <span className="badge badge-accent" style={{ marginBottom: 10 }}>Continue learning</span>
-            <h2 style={{ fontSize: 19, margin: '6px 0 12px' }}>{continueCourse.e.course.title}</h2>
-            <ProgressBar completed={continueCourse.s.completed} total={continueCourse.s.total} />
-            <button className="btn btn-primary" style={{ marginTop: 16 }}
-              onClick={() => navigate(`/courses/${continueCourse.e.course.slug}`)}>
-              Resume course →
-            </button>
-          </div>
-        )}
-
-        {/* ── My live sessions (registered) ── */}
-        {myLiveRegs.length > 0 && (
-          <>
-            <h2 style={{ fontSize: 18, marginBottom: 14 }}>Your live sessions</h2>
-            <div className="grid-cards" style={{ marginBottom: 26 }}>
-              {myLiveRegs.map(r => (
-                <Link key={r._id} to={`/events/${r.event.slug}`} className="card card-hover" style={{ color: 'inherit' }}>
-                  {r.event.thumbnail && (
-                    <img src={r.event.thumbnail} alt="" style={{ borderRadius: 8, marginBottom: 12, aspectRatio: '16/9', objectFit: 'cover' }} />
-                  )}
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-                    <span className="badge badge-muted">{r.event.type === 'workshop' ? 'Workshop' : 'Live class'}</span>
-                    {r.status === 'active'
-                      ? <span className="badge badge-success">Registered</span>
-                      : <span className="badge badge-warning">Payment under verification</span>}
+            {continueCourse && (
+              <section className="db-block">
+                <h2 className="db-h2">Continue learning</h2>
+                <Link to={`/courses/${continueCourse.e.course.slug}`} className="db-continue">
+                  <Cover course={continueCourse.e.course} />
+                  <div className="db-continue-body">
+                    <div className="db-continue-title">{continueCourse.e.course.title}</div>
+                    <Bar completed={continueCourse.s.completed} total={continueCourse.s.total} />
+                    <div className="db-meta">
+                      {continueCourse.s.completed} of {continueCourse.s.total} lessons done
+                    </div>
                   </div>
-                  <h3 style={{ fontSize: 16, marginBottom: 6 }}>{r.event.title}</h3>
-                  {(() => {
-                    const ss = r.event.sessions || [];
-                    const ends = (x) => new Date(x.startsAt).getTime() + (x.durationMins || 60) * 60000;
-                    const next = ss.filter(x => ends(x) > Date.now())
-                      .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt))[0];
-                    const recs = ss.filter(x => x.recordingUrl);
-                    const latest = recs.sort((a, b) =>
-                      new Date(b.recordingAddedAt || b.startsAt) - new Date(a.recordingAddedAt || a.startsAt))[0];
-                    const fresh = latest?.recordingAddedAt &&
-                      Date.now() - new Date(latest.recordingAddedAt).getTime() < 3 * 86400000;
-                    return (
-                      <>
-                        {next && (
-                          <p className="small muted">Next: {next.title} · {fmtEvent(next.startsAt)}</p>
-                        )}
-                        {latest && (
-                          <p className="small" style={{ marginTop: 6, color: 'var(--accent)' }}>
-                            ▶ {latest.title} recording ready{fresh ? ' · New' : ''}
-                            {recs.length > 1 ? ` (${recs.length} recordings)` : ''}
-                          </p>
-                        )}
-                      </>
-                    );
-                  })()}
+                  <span className="btn btn-primary btn-sm db-continue-go">Resume</span>
                 </Link>
-              ))}
-            </div>
-          </>
-        )}
+              </section>
+            )}
 
-        {/* ── New live session — HERO banner for the most imminent one ── */}
-        {heroEvent && (
-          <div className="live-hero">
-            <div className="live-hero-body">
-              <span className="live-eyebrow">
-                <span className="live-dot" />
-                {heroEvent.type === 'workshop' ? 'Live workshop · registering now' : 'Live class · registering now'}
-              </span>
-              <h2 className="live-hero-title">{heroEvent.title}</h2>
-              <p className="live-hero-meta">
-                <strong>{fmtEvent(heroEvent.startsAt)}</strong>
-                {heroEvent.sessions?.length > 1 && <> · {heroEvent.sessions.length} days</>}
-                {' · '}
-                {heroEvent.isPaid ? <>₹{heroEvent.price}</> : 'Free'}
-              </p>
-              <button className="btn btn-primary live-hero-cta"
-                onClick={() => navigate(`/events/${heroEvent.slug}`)}>
-                {heroEvent.isPaid ? 'Grab your seat →' : 'Register free →'}
-              </button>
-            </div>
+            {programs.length > 0 && (
+              <section className="db-block">
+                <h2 className="db-h2">Your live programs</h2>
+                <div className="db-rows">
+                  {programs.map(p => (
+                    <Link key={p.reg._id} to={`/events/${p.event.slug}`} className="db-row">
+                      <div className="db-row-main">
+                        <div className="db-row-title">{p.event.title}</div>
+                        <div className="db-meta">
+                          {p.event.isCompleted || !p.next
+                            ? `Completed, ${p.recs.length} recording${p.recs.length === 1 ? '' : 's'} to rewatch`
+                            : `${p.done} of ${p.sessions.length} classes done${p.recs.length ? `, ${p.recs.length} recording${p.recs.length === 1 ? '' : 's'}` : ''}`}
+                        </div>
+                        <Bar completed={p.done} total={p.sessions.length} />
+                      </div>
+                      <span className="db-chev" aria-hidden="true">›</span>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
 
-            <div>
-              {heroCountdown ? (
-                <div className="live-count">
-                  <div className="live-count-unit">
-                    <div className="live-count-num">{heroCountdown.d}</div>
-                    <div className="live-count-lbl">Days</div>
-                  </div>
-                  <div className="live-count-unit">
-                    <div className="live-count-num">{String(heroCountdown.h).padStart(2, '0')}</div>
-                    <div className="live-count-lbl">Hrs</div>
-                  </div>
-                  <div className="live-count-unit">
-                    <div className="live-count-num">{String(heroCountdown.m).padStart(2, '0')}</div>
-                    <div className="live-count-lbl">Min</div>
-                  </div>
-                  <div className="live-count-unit">
-                    <div className="live-count-num">{String(heroCountdown.s).padStart(2, '0')}</div>
-                    <div className="live-count-lbl">Sec</div>
-                  </div>
+            <section className="db-block">
+              <div className="db-head">
+                <h2 className="db-h2">Your courses</h2>
+                <Link to="/courses" className="db-more">All courses</Link>
+              </div>
+              {active.length === 0 ? (
+                <div className="db-empty">
+                  <p>You haven’t joined a course yet. Start with a free one.</p>
+                  <Link to="/courses" className="btn btn-primary btn-sm">Browse courses</Link>
                 </div>
               ) : (
-                <div className="live-count">
-                  <div className="live-count-unit" style={{ minWidth: 0, flex: 1 }}>
-                    <div className="live-count-num" style={{ fontSize: 20 }}>Starting soon</div>
-                  </div>
+                <div className="rail">
+                  {active.map(({ course, _id, viaEvent, expiresAt }) => {
+                    const s = summary[String(course._id)] || { completed: 0, total: 0 };
+                    return (
+                      <Link key={_id} to={`/courses/${course.slug}`} className="rail-card">
+                        <Cover course={course} />
+                        <div className="rail-body">
+                          <div className="rail-title">{course.title}</div>
+                          <Bar completed={s.completed} total={s.total} />
+                          <div className="db-meta">
+                            {viaEvent ? 'Included with your live program'
+                              : expiresAt ? `Access till ${new Date(expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
+                              : s.total ? `${s.completed} of ${s.total} lessons` : course.isPaid ? 'Purchased' : 'Free course'}
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
                 </div>
               )}
-              {typeof heroEvent.seatsLeft === 'number' && heroEvent.seatsLeft <= 10 && (
-                <p className="live-seats">
-                  {heroEvent.seatsLeft > 0 ? `Only ${heroEvent.seatsLeft} seats left` : 'Waitlist only'}
-                </p>
-              )}
-            </div>
+            </section>
           </div>
-        )}
 
-        {/* ── Any additional open sessions as compact cards ── */}
-        {restEvents.length > 0 && (
-          <>
-            <h2 style={{ fontSize: 18, marginBottom: 14 }}>More live sessions</h2>
-            <div className="grid-cards" style={{ marginBottom: 26 }}>
-              {restEvents.map(e => (
-                <div key={e._id} className="card card-hover">
-                  {e.thumbnail && (
-                    <img src={e.thumbnail} alt="" style={{ borderRadius: 8, marginBottom: 12, aspectRatio: '16/9', objectFit: 'cover' }} />
-                  )}
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-                    <span className="badge badge-muted">{e.type === 'workshop' ? 'Workshop' : 'Live class'}</span>
-                    {e.isPaid
-                      ? <span className="badge badge-warning">₹{e.price}</span>
-                      : <span className="badge badge-accent">Free</span>}
-                  </div>
-                  <h3 style={{ fontSize: 16, marginBottom: 6 }}>{e.title}</h3>
-                  {e.startsAt && (
-                    <p className="small muted" style={{ marginBottom: 12 }}>{fmtEvent(e.startsAt)}</p>
-                  )}
-                  <button className="btn btn-primary btn-sm btn-block"
-                    onClick={() => navigate(`/events/${e.slug}`)}>
-                    {e.isPaid ? 'View & register →' : 'Register free →'}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
+          <aside className="db-side">
+            {poll && !pollOpen && (
+              <button className="db-poll" onClick={() => setPollOpen(true)}>
+                <span className="db-poll-q">{poll.question}</span>
+                <span className="db-more">{poll.hasVoted ? 'See results' : 'Vote'}</span>
+              </button>
+            )}
 
-        <h2 style={{ fontSize: 18, marginBottom: 14 }}>My courses</h2>
-        {active.length === 0 ? (
-          <div className="empty-state">
-            <p>You haven't joined any course yet.</p>
-            <Link to="/courses" className="btn btn-primary" style={{ marginTop: 14 }}>Browse courses</Link>
-          </div>
-        ) : (
-          <div className="grid-cards">
-            {active.map(({ course, _id }) => {
-              const s = summary[String(course._id)] || { completed: 0, total: 0 };
-              return (
-                <Link key={_id} to={`/courses/${course.slug}`} className="card card-hover" style={{ color: 'inherit' }}>
-                  {course.thumbnail && (
-                    <img src={course.thumbnail} alt="" style={{ borderRadius: 8, marginBottom: 12, aspectRatio: '16/9', objectFit: 'cover' }} />
-                  )}
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                    <span className="badge badge-muted">{course.level || 'Beginner'}</span>
-                    {course.isPaid
-                      ? <span className="badge badge-success">Purchased</span>
-                      : <span className="badge badge-accent">Free</span>}
-                  </div>
-                  <h3 style={{ fontSize: 16, marginBottom: 12 }}>{course.title}</h3>
-                  <ProgressBar completed={s.completed} total={s.total} />
-                  {_id && enrollments.find(e => e._id === _id)?.expiresAt && (
-                    <p className="small muted" style={{ marginTop: 8 }}>
-                      Access till {new Date(enrollments.find(e => e._id === _id).expiresAt).toLocaleDateString('en-IN', { dateStyle: 'medium' })}
-                    </p>
-                  )}
-                </Link>
-              );
-            })}
-          </div>
-        )}
+            {answered.length > 0 && (
+              <section className="db-card">
+                <h3 className="db-h3">Rajeev sir answered your doubt{answered.length > 1 ? 's' : ''}</h3>
+                <ul className="db-answers">
+                  {answered.map(q => (
+                    <li key={q._id}>
+                      <Link to={`/episodes/${q.episode?._id || q.episode}`}>{q.episode?.title || 'Lesson'}</Link>
+                      <span className="db-meta">
+                        {q.course?.title ? `${q.course.title}, ` : ''}{new Date(q.answeredAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
 
-        <MentorHubSection />
+            {newEvents.length > 0 && (
+              <section className="db-card db-open">
+                <h3 className="db-h3">Open for registration</h3>
+                {newEvents.slice(0, 3).map(e => (
+                  <Link key={e._id} to={`/events/${e.slug}`} className="db-open-row">
+                    <div>
+                      <div className="db-open-title">{e.title}</div>
+                      <div className="db-meta">
+                        Starts {fmtEvent(e.startsAt)}
+                        {typeof e.seatsLeft === 'number' && e.seatsLeft <= 30 && (
+                          <span className="db-seats">{e.seatsLeft > 0 ? `${e.seatsLeft} seats left` : 'Waitlist'}</span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="db-price">{e.isPaid ? `₹${e.price}` : 'Free'}</span>
+                  </Link>
+                ))}
+              </section>
+            )}
 
-        <SuggestBox />
+            <MentorHubSection />
+            <SuggestBox />
+          </aside>
+        </div>
 
         {explore.length > 0 && (
-          <>
-            <h2 style={{ fontSize: 18, margin: '32px 0 14px' }}>Explore more</h2>
-            <div className="grid-cards">
-              {explore.slice(0, 6).map(course => (
-                <Link key={course._id} to={`/courses/${course.slug}`} className="card card-hover" style={{ color: 'inherit' }}>
-                  {course.thumbnail && (
-                    <img src={course.thumbnail} alt="" style={{ borderRadius: 8, marginBottom: 12, aspectRatio: '16/9', objectFit: 'cover' }} />
-                  )}
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                    <span className="badge badge-muted">{course.episodeCount} lessons</span>
-                    {course.isPaid
-                      ? <span className="badge badge-warning">₹{course.price}</span>
-                      : <span className="badge badge-accent">Free</span>}
+          <section className="db-block db-explore">
+            <div className="db-head">
+              <h2 className="db-h2">Explore more</h2>
+              <Link to="/courses" className="db-more">See all</Link>
+            </div>
+            <div className="rail">
+              {explore.slice(0, 8).map(course => (
+                <Link key={course._id} to={`/courses/${course.slug}`} className="rail-card">
+                  <Cover course={course} />
+                  <div className="rail-body">
+                    <div className="rail-title">{course.title}</div>
+                    <div className="db-meta">
+                      {course.episodeCount ? `${course.episodeCount} lessons` : ''}
+                      <span className="db-price-inline">{course.isPaid ? `₹${course.price}` : 'Free'}</span>
+                    </div>
                   </div>
-                  <h3 style={{ fontSize: 16, marginBottom: 6 }}>{course.title}</h3>
-                  <p className="small muted" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                    {course.description}
-                  </p>
                 </Link>
               ))}
             </div>
-          </>
+          </section>
         )}
       </div>
     </div>

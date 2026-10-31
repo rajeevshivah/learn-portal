@@ -23,8 +23,28 @@ router.get('/overview', protect, adminOnly, asyncHandler(async (req, res) => {
     { $match: { status: 'active', amount: { $gt: 0 } } },
     { $group: { _id: '$course', revenue: { $sum: '$amount' }, sales: { $sum: 1 } } },
   ]);
-  const totalRevenue = revenueAgg.reduce((s, r) => s + r.revenue, 0);
-  const totalSales   = revenueAgg.reduce((s, r) => s + r.sales, 0);
+  const courseRevenue = revenueAgg.reduce((s, r) => s + r.revenue, 0);
+  const courseSales   = revenueAgg.reduce((s, r) => s + r.sales, 0);
+
+  // Webinar revenue: confirmed paid registrations (UPI-approved + Razorpay)
+  const Registration = require('../models/Registration');
+  const LiveEvent = require('../models/LiveEvent');
+  const webinarAgg = await Registration.aggregate([
+    { $match: { status: 'active', amount: { $gt: 0 } } },
+    { $group: { _id: '$event', revenue: { $sum: '$amount' }, sales: { $sum: 1 } } },
+  ]);
+  const webinarRevenue = webinarAgg.reduce((s, r) => s + r.revenue, 0);
+  const webinarSales   = webinarAgg.reduce((s, r) => s + r.sales, 0);
+  const webinarMap = Object.fromEntries(webinarAgg.map(r => [String(r._id), r]));
+  const eventDocs = await LiveEvent.find().select('title isPaid price').sort({ createdAt: -1 });
+  const perEvent = eventDocs.map(e => ({
+    id: e._id, title: e.title, isPaid: e.isPaid, price: e.price,
+    revenue: webinarMap[String(e._id)]?.revenue || 0,
+    sales: webinarMap[String(e._id)]?.sales || 0,
+  }));
+
+  const totalRevenue = courseRevenue + webinarRevenue;
+  const totalSales   = courseSales + webinarSales;
   const revenueMap   = Object.fromEntries(revenueAgg.map(r => [String(r._id), r]));
 
   // ── Per-course enrollments / episodes / completions ──
@@ -79,8 +99,11 @@ router.get('/overview', protect, adminOnly, asyncHandler(async (req, res) => {
       pendingPayments,
       revenue: totalRevenue,
       sales: totalSales,
+      courseRevenue, courseSales,
+      webinarRevenue, webinarSales,
     },
     perCourse,
+    perEvent,
     topEpisodes,
     recentUsers,
   });

@@ -4,6 +4,7 @@ import axios from 'axios';
 import { QRCodeSVG } from 'qrcode.react';
 import Toast from '../components/Toast';
 import { getRzpConfig, payWithRazorpay, PAYMENT_HELP_TEXT } from '../lib/razorpay';
+import { EventFeedback, Testimonials } from '../components/Feedback';
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -368,6 +369,8 @@ export default function EventDetail() {
               </div>
             )}
 
+            {isActive && <div id="feedback"><EventFeedback event={event} /></div>}
+
             {/* ── Schedule ── */}
             <div className="card" style={{ marginBottom: 20 }}>
               <div className="ed-section-head">
@@ -403,6 +406,8 @@ export default function EventDetail() {
                 ))}
               </div>
             </div>
+
+            {canRegister && <Testimonials title="What students say" />}
 
             {/* ── Registration form ── */}
             {canRegister && (
