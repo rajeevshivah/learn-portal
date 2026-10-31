@@ -106,7 +106,11 @@ export default function Dashboard() {
   myRegs.forEach(r => { if (r.event?._id) regByEvent[String(r.event._id)] = r; });
 
   const myLiveRegs = myRegs.filter(
-    r => r.event && !r.event.isCompleted && ['active', 'pending'].includes(r.status)
+    r => r.event && ['active', 'pending'].includes(r.status) && (
+      !r.event.isCompleted ||
+      // finished programs stay here while they have recordings to rewatch
+      (r.status === 'active' && (r.event.sessions || []).some(x => x.recordingUrl))
+    )
   );
   // Show ONLY events that are still open for registration and the student
   // hasn't registered for yet. (registrationOpen is computed server-side.)
@@ -231,9 +235,30 @@ export default function Dashboard() {
                       : <span className="badge badge-warning">Payment under verification</span>}
                   </div>
                   <h3 style={{ fontSize: 16, marginBottom: 6 }}>{r.event.title}</h3>
-                  {r.event.sessions?.[0] && (
-                    <p className="small muted">{fmtEvent(r.event.sessions[0].startsAt)}</p>
-                  )}
+                  {(() => {
+                    const ss = r.event.sessions || [];
+                    const ends = (x) => new Date(x.startsAt).getTime() + (x.durationMins || 60) * 60000;
+                    const next = ss.filter(x => ends(x) > Date.now())
+                      .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt))[0];
+                    const recs = ss.filter(x => x.recordingUrl);
+                    const latest = recs.sort((a, b) =>
+                      new Date(b.recordingAddedAt || b.startsAt) - new Date(a.recordingAddedAt || a.startsAt))[0];
+                    const fresh = latest?.recordingAddedAt &&
+                      Date.now() - new Date(latest.recordingAddedAt).getTime() < 3 * 86400000;
+                    return (
+                      <>
+                        {next && (
+                          <p className="small muted">Next: {next.title} · {fmtEvent(next.startsAt)}</p>
+                        )}
+                        {latest && (
+                          <p className="small" style={{ marginTop: 6, color: 'var(--accent)' }}>
+                            ▶ {latest.title} recording ready{fresh ? ' · New' : ''}
+                            {recs.length > 1 ? ` (${recs.length} recordings)` : ''}
+                          </p>
+                        )}
+                      </>
+                    );
+                  })()}
                 </Link>
               ))}
             </div>

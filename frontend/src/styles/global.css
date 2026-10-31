@@ -639,3 +639,6 @@ button { font-family: inherit; }
 }
 .ed-final-cta { text-align: center; }
 .ed-final-cta .ed-section-title { text-align: center; }
+
+/* ── Event recordings ── */
+.ed-rec-latest { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 8px; }

@@ -88,6 +88,66 @@ const jsonToForm = (raw) => {
 };
 
 
+// ── Quick recordings panel: paste a link per class, save one class at a time ──
+function RecordingsPanel({ ev, onSaved, setToast }) {
+  const [drafts, setDrafts] = useState(() =>
+    Object.fromEntries((ev.sessions || []).map(s => [s._id, s.recordingUrl || ''])));
+  const [busy, setBusy] = useState('');
+  const sorted = [...(ev.sessions || [])].sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
+  const ended = (s) => new Date(s.startsAt).getTime() + (s.durationMins || 60) * 60000 < Date.now();
+  const done = sorted.filter(s => s.recordingUrl).length;
+  const missing = sorted.filter(s => ended(s) && !s.recordingUrl).length;
+
+  const save = async (s) => {
+    setBusy(s._id);
+    try {
+      await axios.put(`${API}/events/${ev._id}/sessions/${s._id}/recording`,
+        { recordingUrl: (drafts[s._id] || '').trim() });
+      setToast((drafts[s._id] || '').trim() ? 'Recording saved — students can watch it now' : 'Recording removed');
+      onSaved();
+    } catch (err) {
+      setToast(err.response?.data?.message || 'Could not save recording');
+    } finally { setBusy(''); }
+  };
+
+  return (
+    <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+      <div className="small muted" style={{ marginBottom: 10 }}>
+        {done} of {sorted.length} recordings added
+        {missing > 0 && <span style={{ color: 'var(--warning)' }}> · {missing} finished class{missing > 1 ? 'es' : ''} still missing a recording</span>}
+        . Only confirmed students see these links.
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {sorted.map((s, i) => {
+          const changed = (drafts[s._id] || '') !== (s.recordingUrl || '');
+          return (
+            <div key={s._id} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>
+                  {i + 1}. {s.title}{' '}
+                  {s.recordingUrl
+                    ? <span className="badge badge-success">✓ Added</span>
+                    : ended(s) ? <span className="badge badge-warning">Missing</span>
+                    : <span className="badge badge-muted">Upcoming</span>}
+                </div>
+                <div className="small muted">{new Date(s.startsAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true })}</div>
+              </div>
+              <input className="input" style={{ flex: '2 1 280px' }}
+                placeholder="https://youtu.be/… (unlisted)"
+                value={drafts[s._id] || ''}
+                onChange={e => setDrafts(d => ({ ...d, [s._id]: e.target.value }))}
+                onKeyDown={e => { if (e.key === 'Enter' && changed) save(s); }} />
+              <button className="btn btn-primary btn-sm" disabled={!changed || busy === s._id} onClick={() => save(s)}>
+                {busy === s._id ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function EventsTab({ onChange }) {
   const [events, setEvents]   = useState([]);
   const [courses, setCourses] = useState([]);
@@ -101,6 +161,7 @@ export default function EventsTab({ onChange }) {
   const [viewingRegs, setViewingRegs] = useState(null);  // event whose attendees we're showing
   const [regs, setRegs] = useState([]);
 
+  const [recordingsFor, setRecordingsFor] = useState(null); // event id whose recordings panel is open
   const [showImport, setShowImport] = useState(false);   // JSON import panel toggle
   const [pasteText, setPasteText]   = useState('');      // pasted JSON
 
@@ -751,11 +812,18 @@ export default function EventsTab({ onChange }) {
                     Registrations
                     {ev.counts.pending > 0 && <span className="tab-count">{ev.counts.pending}</span>}
                   </button>
+                  <button className="btn btn-ghost btn-sm"
+                    onClick={() => setRecordingsFor(recordingsFor === ev._id ? null : ev._id)}>
+                    🎥 Recordings
+                  </button>
                   <button className="btn btn-ghost btn-sm" onClick={() => startEdit(ev)}>Edit</button>
                   <button className="btn btn-ghost btn-sm" onClick={() => remove(ev)}
                     style={{ color: 'var(--danger)' }}>Delete</button>
                 </div>
               </div>
+              {recordingsFor === ev._id && (
+                <RecordingsPanel key={ev._id + (ev.updatedAt || '')} ev={ev} onSaved={load} setToast={setToast} />
+              )}
             </div>
           ))}
         </div>

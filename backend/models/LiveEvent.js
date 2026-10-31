@@ -9,6 +9,8 @@ const sessionSchema = new mongoose.Schema({
   joinUrl:   { type: String, default: '' },   // Zoom / Meet / YouTube-live link
   // After the session ends you can attach the recording.
   recordingUrl: { type: String, default: '' },
+  // When the recording link was first added / last changed (drives the "New" badge)
+  recordingAddedAt: { type: Date, default: null },
   // If this session was pushed into the course as an episode, we store it here
   // so you can't accidentally publish the same recording twice.
   publishedEpisode: {

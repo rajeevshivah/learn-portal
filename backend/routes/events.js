@@ -25,6 +25,15 @@ const isRegistrationOpen = (event) => {
   return first ? first > now : false;
 };
 
+// Session list for a student: join + recording links only for confirmed
+// registrations. Everyone else just learns whether a recording exists.
+const shapeSessions = (sessions, active) => (sessions || []).map(s => ({
+  ...s,
+  joinUrl:      active ? s.joinUrl : '',
+  recordingUrl: active ? s.recordingUrl : '',
+  hasRecording: Boolean(s.recordingUrl),
+}));
+
 // Strip sensitive fields unless the student actually has access.
 // joinUrl and whatsappLink are the two things that must never leak.
 const shapeEvent = (event, registration) => {
@@ -33,11 +42,8 @@ const shapeEvent = (event, registration) => {
 
   return {
     ...obj,
-    sessions: (obj.sessions || []).map(s => ({
-      ...s,
-      // Hide the meeting link from anyone not confirmed
-      joinUrl: active ? s.joinUrl : '',
-    })),
+    // Hide the meeting + recording links from anyone not confirmed
+    sessions: shapeSessions(obj.sessions, active),
     whatsappLink: active ? obj.whatsappLink : '',
     registrationOpen: isRegistrationOpen(event),
     myRegistration: registration ? {
@@ -293,9 +299,7 @@ router.get('/my/registrations', protect, asyncHandler(async (req, res) => {
       event: {
         ...e,
         whatsappLink: active ? e.whatsappLink : '',
-        sessions: (e.sessions || []).map(s => ({
-          ...s, joinUrl: active ? s.joinUrl : '',
-        })),
+        sessions: shapeSessions(e.sessions, active),
       },
     };
   }));
@@ -351,9 +355,50 @@ router.put('/:id', protect, adminOnly, asyncHandler(async (req, res) => {
   if (body.slug) body.slug = body.slug.toLowerCase().trim();
   delete body._id;
 
+  // Keep recording timestamps across full-form saves; stamp new/changed links.
+  if (Array.isArray(body.sessions)) {
+    const before = new Map(event.sessions.map(x => [String(x._id), x]));
+    body.sessions = body.sessions.map(x => {
+      const old = x._id ? before.get(String(x._id)) : null;
+      const url = (x.recordingUrl || '').trim();
+      let addedAt = old?.recordingAddedAt || null;
+      if (!url) addedAt = null;
+      else if (!old || old.recordingUrl !== url || !addedAt) addedAt = new Date();
+      return {
+        ...x,
+        recordingUrl: url,
+        recordingAddedAt: addedAt,
+        publishedEpisode: x.publishedEpisode ?? old?.publishedEpisode ?? null,
+      };
+    });
+  }
+
   Object.assign(event, body);
   await event.save();
   res.json(event);
+}));
+
+// ── PUT /api/events/:id/sessions/:sessionId/recording ──
+// Quick "paste the recording after class" — touches only that one session.
+// Body: { recordingUrl }  (empty string removes the recording)
+router.put('/:id/sessions/:sessionId/recording', protect, adminOnly, asyncHandler(async (req, res) => {
+  const url = String(req.body.recordingUrl || '').trim();
+  if (url) {
+    let ok = false;
+    try { ok = new URL(url).protocol === 'https:'; } catch (e) { ok = false; }
+    if (!ok) return res.status(400).json({ message: 'Paste a full https:// link (e.g. your YouTube unlisted link)' });
+  }
+  const event = await LiveEvent.findById(req.params.id);
+  if (!event) return res.status(404).json({ message: 'Event not found' });
+  const session = event.sessions.id(req.params.sessionId);
+  if (!session) return res.status(404).json({ message: 'Session not found' });
+
+  if (session.recordingUrl !== url) {
+    session.recordingUrl = url;
+    session.recordingAddedAt = url ? new Date() : null;
+    await event.save();
+  }
+  res.json({ message: url ? 'Recording saved' : 'Recording removed', session });
 }));
 
 // ── DELETE /api/events/:id ───────────────────────────────

@@ -101,6 +101,17 @@ export default function EventDetail() {
   const multi      = event.sessions?.length > 1;
   const dayCount   = event.sessions?.length || 0;
 
+  // Recordings: a session has ended once start + duration has passed.
+  const sessionEnded = (s) =>
+    new Date(s.startsAt).getTime() + (s.durationMins || 60) * 60000 < Date.now();
+  const isNewRec = (s) =>
+    s.recordingAddedAt && Date.now() - new Date(s.recordingAddedAt).getTime() < 3 * 86400000;
+  const recordings = (event.sessions || []).filter(s => s.recordingUrl);
+  const latestRec = recordings.reduce((best, s) => {
+    const t = new Date(s.recordingAddedAt || s.startsAt).getTime();
+    return !best || t > new Date(best.recordingAddedAt || best.startsAt).getTime() ? s : best;
+  }, null);
+
   const fmt = (d) => new Date(d).toLocaleString('en-IN', {
     weekday: 'short', day: 'numeric', month: 'short',
     hour: 'numeric', minute: '2-digit', hour12: true,
@@ -325,6 +336,31 @@ export default function EventDetail() {
               </div>
             )}
 
+            {/* ── Recordings (confirmed students only) ── */}
+            {isActive && recordings.length > 0 && (
+              <div className="card ed-recordings" style={{ marginBottom: 20, borderColor: 'var(--accent)' }}>
+                <div className="ed-section-head">
+                  <h2 className="ed-section-title">Class recordings</h2>
+                  <span className="small muted">{recordings.length} of {dayCount} available</span>
+                </div>
+                <div className="ed-rec-latest">
+                  <div>
+                    <div className="small muted">Latest</div>
+                    <div style={{ fontWeight: 600 }}>
+                      {latestRec.title}
+                      {isNewRec(latestRec) && <span className="badge badge-accent" style={{ marginLeft: 8 }}>New</span>}
+                    </div>
+                  </div>
+                  <a href={latestRec.recordingUrl} target="_blank" rel="noreferrer" className="btn btn-primary btn-sm">
+                    ▶ Watch recording
+                  </a>
+                </div>
+                <p className="small muted" style={{ marginTop: 10 }}>
+                  Every class's recording is listed in the schedule below. Please don't share these links.
+                </p>
+              </div>
+            )}
+
             {/* ── Schedule ── */}
             <div className="card" style={{ marginBottom: 20 }}>
               <div className="ed-section-head">
@@ -338,11 +374,23 @@ export default function EventDetail() {
                     <div className="ed-sched-body">
                       <div className="ed-sched-title">{s.title}</div>
                       <div className="small muted">{fmt(s.startsAt)} · {s.durationMins} min</div>
-                      {isActive && s.joinUrl && (
+                      {isActive && s.joinUrl && !sessionEnded(s) && (
                         <a href={s.joinUrl} target="_blank" rel="noreferrer"
                           className="btn btn-primary btn-sm" style={{ marginTop: 8, display: 'inline-block' }}>
                           Join this session →
                         </a>
+                      )}
+                      {isActive && s.recordingUrl && (
+                        <a href={s.recordingUrl} target="_blank" rel="noreferrer"
+                          className="btn btn-ghost btn-sm" style={{ marginTop: 8, display: 'inline-block' }}>
+                          ▶ Watch recording{isNewRec(s) ? ' · New' : ''}
+                        </a>
+                      )}
+                      {isActive && !s.recordingUrl && sessionEnded(s) && (
+                        <div className="small muted" style={{ marginTop: 6 }}>Recording coming soon</div>
+                      )}
+                      {!isActive && s.hasRecording && (
+                        <div className="small muted" style={{ marginTop: 6 }}>🎥 Recording available to registered students</div>
                       )}
                     </div>
                   </div>
