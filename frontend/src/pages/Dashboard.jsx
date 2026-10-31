@@ -170,8 +170,13 @@ export default function Dashboard() {
 
       <div className="container section db">
         <header className="db-hello">
-          <h1>{greeting()}, {user.name.split(' ')[0]}</h1>
-          <p>{subtitle}</p>
+          {user.avatar
+            ? <img className="db-hello-avatar" src={user.avatar} alt="" referrerPolicy="no-referrer" />
+            : <span className="db-hello-avatar db-hello-initial" aria-hidden="true">{user.name[0]}</span>}
+          <div>
+            <h1>{greeting()}, {user.name.split(' ')[0]}</h1>
+            <p>{subtitle}</p>
+          </div>
         </header>
 
         {notices.length > 0 && (
@@ -214,6 +219,7 @@ export default function Dashboard() {
                 <div className="db-rows">
                   {programs.map(p => (
                     <Link key={p.reg._id} to={`/events/${p.event.slug}`} className="db-row">
+                      {p.event.thumbnail && <img className="db-row-thumb" src={p.event.thumbnail} alt="" loading="lazy" />}
                       <div className="db-row-main">
                         <div className="db-row-title">{p.event.title}</div>
                         <div className="db-meta">
@@ -293,7 +299,8 @@ export default function Dashboard() {
                 <h3 className="db-h3">Open for registration</h3>
                 {newEvents.slice(0, 3).map(e => (
                   <Link key={e._id} to={`/events/${e.slug}`} className="db-open-row">
-                    <div>
+                    {e.thumbnail && <img className="db-open-thumb" src={e.thumbnail} alt="" loading="lazy" />}
+                    <div className="db-open-main">
                       <div className="db-open-title">{e.title}</div>
                       <div className="db-meta">
                         Starts {fmtEvent(e.startsAt)}

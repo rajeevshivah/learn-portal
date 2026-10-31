@@ -411,3 +411,22 @@
   .home-ticket .home-mrp { order: 1; align-self: baseline; color: var(--text-3); }
   .home-ticket .home-seats { order: 2; margin: 0 0 0 auto; align-self: baseline; }
 }
+
+/* ── Event thumbnails + profile photo ── */
+.db-hello { display: flex; align-items: center; gap: 14px; }
+.db-hello-avatar { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 2px solid var(--border-hi); }
+.db-hello-initial { display: inline-flex; align-items: center; justify-content: center; background: var(--surface-2); font-family: var(--font-display); font-weight: 700; font-size: 22px; }
+.ticket-thumb { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 10px; margin-bottom: 14px; display: block; }
+.db-row-thumb { width: 104px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
+.db-open-row { align-items: flex-start; }
+.db-open-main { flex: 1; min-width: 0; }
+.db-open-thumb { width: 64px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 6px; flex-shrink: 0; margin-top: 2px; }
+.ev-list-thumb { width: 168px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 10px; flex-shrink: 0; align-self: center; }
+.ed-reg-thumb { border-radius: 16px; margin-bottom: 14px; }
+.ticket-compact .ticket-thumb { display: none; }   /* the event page shows the image above the ticket */
+@media (max-width: 720px) {
+  .db-hello-avatar { width: 44px; height: 44px; }
+  .ticket-thumb { width: 92px; margin: 0; order: -1; border-radius: 8px; }
+  .db-row-thumb { width: 84px; }
+  .ev-list-thumb { width: 100%; }
+}

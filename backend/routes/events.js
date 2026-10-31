@@ -117,6 +117,10 @@ async function syncLesson(event, session) {
 // Mirror every recorded session of an event; saves the event if links changed.
 async function syncAllLessons(event) {
   if (!event.recordingsCourse) return;
+  // A recordings course without its own image borrows the webinar's thumbnail.
+  if (event.thumbnail) {
+    await Course.updateOne({ _id: event.recordingsCourse, thumbnail: { $in: ['', null] } }, { $set: { thumbnail: event.thumbnail } });
+  }
   let touched = false;
   for (const session of event.sessions) {
     if (!session.recordingUrl && !session.publishedEpisode) continue;

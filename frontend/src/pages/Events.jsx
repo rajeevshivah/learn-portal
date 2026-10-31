@@ -91,6 +91,7 @@ export default function Events() {
                 <div key={ev._id} className="card card-hover"
                   style={{ display: 'flex', gap: 16, padding: '16px 18px', cursor: 'pointer', flexWrap: 'wrap' }}
                   onClick={() => navigate(`/events/${ev.slug}`)}>
+                  {ev.thumbnail && <img className="ev-list-thumb" src={ev.thumbnail} alt="" loading="lazy" />}
 
                   <div style={{ flex: '1 1 320px', minWidth: 0 }}>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>

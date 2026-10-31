@@ -239,10 +239,14 @@ export default function EventDetail() {
                 const next = ss.find(s => !sessionEnded(s));
                 const recs = ss.filter(s => s.recordingUrl);
                 if (next) {
-                  return <ClassTicket compact t={{ event, session: next, number: next.number, total: ss.length, lastRec: recs[recs.length - 1] }} />;
+                  return <>
+                    {event.thumbnail && <img className="ed-buy-thumb ed-reg-thumb" src={event.thumbnail} alt={event.title} />}
+                    <ClassTicket compact t={{ event, session: next, number: next.number, total: ss.length, lastRec: recs[recs.length - 1] }} />
+                  </>;
                 }
                 return (
                   <div className="ed-buy ed-done">
+                    {event.thumbnail && <img className="ed-buy-thumb" src={event.thumbnail} alt={event.title} />}
                     <div className="ed-buy-body">
                       <div className="ed-done-title">All {ss.length} classes are done</div>
                       <p className="small muted">{recs.length} recording{recs.length === 1 ? '' : 's'} to rewatch, with notes.</p>

@@ -62,6 +62,7 @@ export default function ClassTicket({ t, compact = false }) {
         </div>
       </div>
       <div className="ticket-stub">
+        {event.thumbnail && <img className="ticket-thumb" src={event.thumbnail} alt="" loading="lazy" />}
         <div className="ticket-num">
           <span className="ticket-num-big">{number}</span>
           <span className="ticket-num-of">of {total}</span>

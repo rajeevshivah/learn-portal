@@ -69,6 +69,7 @@ export default function Home() {
               <span className="btn btn-primary">{lead.isPaid ? 'Register' : 'Register free'}</span>
             </div>
             <div className="ticket-stub">
+              {lead.thumbnail && <img className="ticket-thumb" src={lead.thumbnail} alt="" />}
               {lead.isPaid ? (
                 <>
                   <div className="ticket-num"><span className="ticket-num-big home-price">₹{lead.price}</span></div>
