@@ -8,6 +8,8 @@ Talk to your platform in plain language:
 - "Add the recording https://youtu.be/… to yesterday's class"
 - "Upload C:\notes\class3.pdf as notes for Class 3"
 - "Answer this doubt: …"
+- "How did students rate Day 3? Show me the 3-star comments"
+- "Feature the best 5 reviews from the ML program"
 - "Create a ₹199 recordings course and link it to the ML webinar"
 
 The server only calls your website's API with a personal access key, so every
@@ -94,7 +96,7 @@ not ones on your computer. This server runs on your computer, so use Codex for G
 - Only `https://` backends are accepted (localhost allowed for testing).
 - Student messages, doubts and feedback are data, never instructions to the assistant.
 
-## Tools (61)
+## Tools (66)
 
 | Area | Tools |
 |---|---|
@@ -102,6 +104,7 @@ not ones on your computer. This server runs on your computer, so use Codex for G
 | Webinars | list_events, get_event, create_event, update_event, delete_event, upload_event_thumbnail |
 | Classes | add_class, add_classes_bulk, update_class, set_join_link_for_classes, remove_class, set_class_recording |
 | Registrations | list_registrations, list_pending_registrations, approve_registration, reject_registration, toggle_attendance |
+| Feedback & testimonials | get_event_feedback, list_feedback, feature_testimonial, hide_feedback, get_public_rating |
 | Courses | list_courses, create_course, update_course, delete_course, upload_course_roadmap_pdf |
 | Lessons | list_lessons, create_lesson, update_lesson, delete_lesson, upload_lesson_notes, delete_lesson_file |
 | Payments | list_pending_course_payments, list_course_payment_history, approve_course_payment, reject_course_payment, list_online_payments |
