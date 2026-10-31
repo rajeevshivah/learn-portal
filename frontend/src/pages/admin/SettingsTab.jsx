@@ -5,6 +5,93 @@ import Toast from '../../components/Toast';
 
 const API = import.meta.env.VITE_API_URL;
 
+// ── AI access keys for the MCP server (Claude / GPT) ──
+function AccessKeys({ setToast }) {
+  const [keys, setKeys] = useState([]);
+  const [name, setName] = useState('');
+  const [days, setDays] = useState(90);
+  const [write, setWrite] = useState(true);
+  const [secret, setSecret] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const load = () => axios.get(`${API}/apikeys`).then(({ data }) => setKeys(data)).catch(() => {});
+  useEffect(() => { load(); }, []);
+
+  const create = async () => {
+    if (!name.trim()) return setToast('Give the key a name, e.g. "Claude on my laptop"');
+    setBusy(true);
+    try {
+      const { data } = await axios.post(`${API}/apikeys`, { name, days, write });
+      setSecret(data.token); setName(''); load();
+    } catch (err) { setToast(err.response?.data?.message || 'Could not create key'); }
+    finally { setBusy(false); }
+  };
+  const revoke = async (k) => {
+    if (!window.confirm(`Revoke "${k.name}"? Any assistant using it stops working immediately.`)) return;
+    try { await axios.delete(`${API}/apikeys/${k._id}`); load(); setToast('Key revoked'); }
+    catch (err) { setToast(err.response?.data?.message || 'Could not revoke'); }
+  };
+  const status = (k) => k.revokedAt ? 'Revoked' : new Date(k.expiresAt) <= new Date() ? 'Expired' : 'Active';
+
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <h3 style={{ fontSize: 16, marginBottom: 4 }}>AI access keys (MCP)</h3>
+      <p className="small muted" style={{ marginBottom: 14 }}>
+        Lets Claude or GPT run this admin panel for you through the MCP server. A key acts as you.
+        Read-only keys can look but not change anything. Revoke a key the moment you stop using it.
+      </p>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <input className="input" style={{ flex: '2 1 200px' }} placeholder='Name, e.g. "Claude on my laptop"'
+          value={name} onChange={e => setName(e.target.value)} maxLength={80} />
+        <select className="input" style={{ flex: '0 1 130px' }} value={days} onChange={e => setDays(Number(e.target.value))}>
+          {[30, 90, 180, 365].map(d => <option key={d} value={d}>{d} days</option>)}
+        </select>
+        <label className="small" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <input type="checkbox" checked={write} onChange={e => setWrite(e.target.checked)} />
+          Allow changes
+        </label>
+        <button className="btn btn-primary btn-sm" disabled={busy} onClick={create}>
+          {busy ? 'Creating…' : 'Create key'}
+        </button>
+      </div>
+
+      {secret && (
+        <div className="card" style={{ marginTop: 12, borderColor: 'var(--warning)' }}>
+          <strong className="small" style={{ color: 'var(--warning)' }}>Copy this key now — it will never be shown again.</strong>
+          <code style={{ display: 'block', wordBreak: 'break-all', margin: '8px 0', fontSize: 13 }}>{secret}</code>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-ghost btn-sm" onClick={() =>
+              navigator.clipboard?.writeText(secret).then(() => setToast('Key copied ✓')).catch(() => {})}>Copy</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setSecret('')}>I've saved it</button>
+          </div>
+        </div>
+      )}
+
+      {keys.length > 0 && (
+        <div className="table-wrap" style={{ marginTop: 14 }}>
+          <table className="table">
+            <thead><tr><th>Name</th><th>Key</th><th>Access</th><th>Expires</th><th>Last used</th><th>Status</th><th /></tr></thead>
+            <tbody>
+              {keys.map(k => (
+                <tr key={k._id}>
+                  <td>{k.name}</td>
+                  <td className="small muted">{k.prefix}…</td>
+                  <td>{k.scopes.includes('write') ? 'Read + change' : 'Read only'}</td>
+                  <td className="small">{new Date(k.expiresAt).toLocaleDateString('en-IN', { dateStyle: 'medium' })}</td>
+                  <td className="small muted">{k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : 'Never'}</td>
+                  <td>{status(k)}</td>
+                  <td>{status(k) === 'Active' && <button className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }} onClick={() => revoke(k)}>Revoke</button>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SettingsTab() {
   const [form, setForm] = useState({ upiId: '', upiName: '', paymentNote: '' });
   const [qrUrl, setQrUrl] = useState('');          // uploaded custom QR (overrides generated)
@@ -116,6 +203,7 @@ export default function SettingsTab() {
           <div className="qr-box"><QRCodeSVG value={testLink} size={150} level="M" /></div>
         </div>
       )}
+      <AccessKeys setToast={setToast} />
       <Toast message={toast} onDone={() => setToast('')} />
     </div>
   );
