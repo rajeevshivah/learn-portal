@@ -96,7 +96,7 @@ export default function Navbar() {
 
   const isAdmin = user?.role === 'admin';
   const tab = (to, label, icon, match) => (
-    <NavLink to={to} className={() => `tab ${match(pathname) ? 'active' : ''}`} aria-label={label}>
+    <NavLink to={to} className={() => `tb-item ${match(pathname) ? 'active' : ''}`} aria-label={label}>
       {icon}<span>{label}</span>
     </NavLink>
   );
@@ -127,7 +127,7 @@ export default function Navbar() {
         {tab('/dashboard', 'Home', Icon.home, p => p === '/dashboard')}
         {tab('/courses', 'Learn', Icon.learn, p => p.startsWith('/courses') || p.startsWith('/episodes') || p.startsWith('/pay'))}
         {tab('/events', 'Live', Icon.live, p => p.startsWith('/events'))}
-        <button className={`tab ${more || pathname.startsWith('/admin') ? 'active' : ''}`} onClick={() => setMore(true)} aria-label="More">
+        <button className={`tb-item ${more || pathname.startsWith('/admin') ? 'active' : ''}`} onClick={() => setMore(true)} aria-label="More">
           {Icon.more}<span>More</span>
         </button>
       </nav>

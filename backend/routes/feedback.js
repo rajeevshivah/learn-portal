@@ -49,9 +49,9 @@ router.get('/pending', protect, asyncHandler(async (req, res) => {
   for (const e of events) {
     const ss = sorted(e.sessions);
     ss.forEach((s, i) => {
-      const started = new Date(s.startsAt).getTime() <= now;
+      const ended = endOf(s) <= now;            // ask only after the class is over
       const fresh = now - endOf(s) < PROMPT_DAYS * 864e5;
-      if (started && fresh && !done.has(`${e._id}:${s._id}`)) {
+      if (ended && fresh && !done.has(`${e._id}:${s._id}`)) {
         classes.push({ eventId: e._id, eventTitle: e.title, eventSlug: e.slug,
           sessionId: s._id, number: i + 1, title: s.title, startsAt: s.startsAt });
       }

@@ -112,6 +112,10 @@ export default function EventDetail() {
   // Recordings: a session has ended once start + duration has passed.
   const sessionEnded = (s) =>
     new Date(s.startsAt).getTime() + (s.durationMins || 60) * 60000 < Date.now();
+  // Only the next class gets a Join button, so the schedule isn't a wall of identical buttons.
+  const nextSession = [...(event.sessions || [])]
+    .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt)).find(s => !sessionEnded(s));
+  const isLiveNow = (s) => new Date(s.startsAt).getTime() <= Date.now() && !sessionEnded(s);
   const isNewRec = (s) =>
     s.recordingAddedAt && Date.now() - new Date(s.recordingAddedAt).getTime() < 3 * 86400000;
   const recordings = (event.sessions || []).filter(s => s.recordingUrl);
@@ -321,7 +325,7 @@ export default function EventDetail() {
                       💬 Join the WhatsApp group
                     </a>
                     <p className="small muted" style={{ marginTop: 10, textAlign: 'center' }}>
-                      All reminders, joining links and materials are shared in the group.
+                      Your Join button appears on your Home screen and in the schedule below, 15 minutes before each class.
                     </p>
                   </>
                 ) : isPending ? (
@@ -384,10 +388,10 @@ export default function EventDetail() {
                     <div className="ed-sched-body">
                       <div className="ed-sched-title">{s.title}</div>
                       <div className="small muted">{fmt(s.startsAt)} · {s.durationMins} min</div>
-                      {isActive && s.joinUrl && !sessionEnded(s) && (
+                      {isActive && s.joinUrl && nextSession && s._id === nextSession._id && (
                         <a href={s.joinUrl} target="_blank" rel="noreferrer"
                           className="btn btn-primary btn-sm" style={{ marginTop: 8, display: 'inline-block' }}>
-                          Join this session →
+                          {isLiveNow(s) ? 'Live now: join class' : 'Join link for this class'}
                         </a>
                       )}
                       {isActive && s.recordingUrl && (

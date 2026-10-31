@@ -145,8 +145,8 @@ export function EventFeedback({ event }) {
 
   const now = Date.now();
   const sessions = [...(event.sessions || [])].sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
-  const started = sessions.map((s, i) => ({ ...s, number: i + 1 })).filter(s => new Date(s.startsAt).getTime() <= now);
   const endOf = (s) => new Date(s.startsAt).getTime() + (s.durationMins || 60) * 60000;
+  const started = sessions.map((s, i) => ({ ...s, number: i + 1 })).filter(s => endOf(s) <= now); // finished classes
   const endedCount = sessions.filter(s => endOf(s) < now).length;
   const programOpen = event.isCompleted || (sessions.length && endedCount >= Math.ceil(sessions.length / 2));
   const byId = new Map(mine.map(f => [String(f.sessionId || 'program'), f]));

@@ -940,7 +940,7 @@ export default function EventsTab({ onChange }) {
                       ? <span className="badge badge-warning">₹{ev.price}</span>
                       : <span className="badge badge-accent">Free</span>}
                     {ev.isPublished
-                      ? <span className="badge badge-success">Live</span>
+                      ? <span className="badge badge-success">Published</span>
                       : <span className="badge badge-muted">Draft</span>}
                     {ev.isCompleted && <span className="badge badge-muted">Done</span>}
                     {!ev.whatsappLink && (

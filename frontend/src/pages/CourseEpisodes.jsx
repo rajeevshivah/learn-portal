@@ -162,7 +162,7 @@ export default function CourseEpisodes() {
               <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
                 <span className="badge badge-muted">{course.level}</span>
                 <span className="badge badge-muted">{course.language}</span>
-                <span className="badge badge-muted">{episodes.length} lessons</span>
+                <span className="badge badge-muted">{episodes.length} {episodes.length === 1 ? 'lesson' : 'lessons'}</span>
                 {course.isPaid
                   ? (status === 'active'
                       ? <span className="badge badge-success">Purchased</span>

@@ -31,7 +31,7 @@ export default function Courses() {
           <div className="empty-state">No courses published yet. Check back soon.</div>
         ) : (
           <div className="grid-cards">
-            {courses.map(course => {
+            {courses.filter(c => c.episodeCount > 0 || myMap[String(c._id)]).map(course => {
               const status = myMap[String(course._id)];
               return (
                 <Link key={course._id} to={`/courses/${course.slug}`} className="card card-hover" style={{ color: 'inherit', display: 'flex', flexDirection: 'column' }}>
@@ -40,7 +40,7 @@ export default function Courses() {
                   )}
                   <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
                     <span className="badge badge-muted">{course.level}</span>
-                    <span className="badge badge-muted">{course.episodeCount} lessons</span>
+                    <span className="badge badge-muted">{course.episodeCount} {course.episodeCount === 1 ? 'lesson' : 'lessons'}</span>
                     {status === 'active' && <span className="badge badge-success">Enrolled</span>}
                     {status === 'pending' && <span className="badge badge-warning">Verifying</span>}
                   </div>

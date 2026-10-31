@@ -108,7 +108,7 @@ function ClassTicket({ t }) {
         {lastRec && (
           <RecLink s={lastRec} className="ticket-rec">
             <span className="ticket-rec-play" aria-hidden="true">▶</span>
-            <span>Missed class {lastRec.number}? Watch the recording</span>
+            <span>Class {lastRec.number} recording is ready</span>
           </RecLink>
         )}
       </div>
@@ -137,16 +137,18 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    Promise.all([
+    // Each part loads independently: one slow or failing call never blanks the others.
+    Promise.allSettled([
       axios.get(`${API}/courses/my/enrollments`),
       axios.get(`${API}/progress/summary`),
       axios.get(`${API}/courses`),
     ]).then(([enr, prog, all]) => {
-      setEnrollments(enr.data);
-      setSummary(Object.fromEntries(prog.data.map(p => [String(p.course), p])));
-      const enrolledIds = new Set(enr.data.map(e => String(e.course._id)));
-      setExplore(all.data.filter(c => !enrolledIds.has(String(c._id))));
-    }).catch(() => {}).finally(() => setLoading(false));
+      const mine = enr.status === 'fulfilled' ? enr.value.data : [];
+      setEnrollments(mine);
+      if (prog.status === 'fulfilled') setSummary(Object.fromEntries(prog.value.data.map(p => [String(p.course), p])));
+      const enrolledIds = new Set(mine.map(e => String(e.course._id)));
+      if (all.status === 'fulfilled') setExplore(all.value.data.filter(c => !enrolledIds.has(String(c._id)) && c.episodeCount > 0));
+    }).finally(() => setLoading(false));
 
     // answered doubts are non-critical — load separately, fail silently
     axios.get(`${API}/questions/my/answered`)
@@ -413,7 +415,7 @@ export default function Dashboard() {
                   <div className="rail-body">
                     <div className="rail-title">{course.title}</div>
                     <div className="db-meta">
-                      {course.episodeCount ? `${course.episodeCount} lessons` : ''}
+                      {course.episodeCount ? `${course.episodeCount} ${course.episodeCount === 1 ? 'lesson' : 'lessons'}` : ''}
                       <span className="db-price-inline">{course.isPaid ? `₹${course.price}` : 'Free'}</span>
                     </div>
                   </div>
