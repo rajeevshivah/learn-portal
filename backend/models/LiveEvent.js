@@ -62,7 +62,7 @@ const liveEventSchema = new mongoose.Schema({
   whatsappLink:    { type: String, default: '' },
   confirmationMsg: {
     type: String,
-    default: 'You are registered! Join the WhatsApp group below for the joining link and reminders.',
+    default: 'You’re in! Join the WhatsApp group for reminders and updates. Your Join button appears on your Home screen 15 minutes before each class.',
   },
 
   // Optional cap. 0 = unlimited.

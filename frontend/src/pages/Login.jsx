@@ -1,5 +1,5 @@
 import { GoogleLogin } from '@react-oauth/google';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
@@ -29,12 +29,13 @@ export default function Login() {
           code<span style={{ color: 'var(--accent)' }}>With</span>Shivah
         </div>
         <p className="muted small" style={{ marginBottom: 28 }}>
-          Short, outcome-focused courses.<br />Sign in to start learning.
+          Live classes and short courses in Hinglish.<br />Sign in with Google to continue.
         </p>
         <div style={{ display: 'flex', justifyContent: 'center' }}>
           <GoogleLogin onSuccess={onSuccess} onError={() => setError('Login failed — please try again.')} theme="filled_black" shape="pill" />
         </div>
         {error && <p className="small" style={{ color: 'var(--danger)', marginTop: 16 }}>{error}</p>}
+        <p className="small" style={{ marginTop: 24 }}><Link to="/" className="muted">See what’s on offer first</Link></p>
       </div>
     </div>
   );

@@ -109,7 +109,8 @@ router.get('/pending', protect, adminOnly, asyncHandler(async (req, res) => {
     .populate('user', 'name email avatar')
     .populate('course', 'title slug price')
     .sort({ updatedAt: 1 });   // oldest first — fair queue
-  res.json(pending);
+  const { markDuplicateUtrs } = require('../utils/duplicateUtr');
+  res.json(await markDuplicateUtrs(pending));
 }));
 
 // ── ADMIN: payment history (all paid enrollments) ────────

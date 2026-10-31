@@ -136,3 +136,20 @@ export default function Navbar() {
     </>
   );
 }
+
+// Top bar for logged-out visitors (homepage, course catalog).
+export function PublicBar() {
+  const { pathname } = useLocation();
+  const back = pathname === '/' ? '/dashboard' : pathname;
+  return (
+    <header className="nav">
+      <div className="nav-inner">
+        <Link to="/" className="nav-logo">code<span>With</span>Shivah</Link>
+        <nav className="pub-links" aria-label="Main">
+          <NavLink to="/courses" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>Courses</NavLink>
+          <Link to={`/login?redirect=${encodeURIComponent(back)}`} className="btn btn-primary btn-sm">Sign in</Link>
+        </nav>
+      </div>
+    </header>
+  );
+}

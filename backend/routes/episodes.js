@@ -44,6 +44,20 @@ router.get('/', protect, asyncHandler(async (req, res) => {
   }));
 }));
 
+// ── PUBLIC: lesson outline for a published course (logged-out visitors) ──
+// Titles and structure only. Never returns video links or files.
+router.get('/outline/:courseId', asyncHandler(async (req, res) => {
+  const courseDoc = await Course.findOne({ _id: req.params.courseId, isPublished: true }).select('isPaid');
+  if (!courseDoc) return res.status(404).json({ message: 'Course not found' });
+  const episodes = await Episode.find({ course: courseDoc._id, isPublished: true })
+    .select('episodeNumber title phase duration isFreePreview tags')
+    .sort({ episodeNumber: 1 });
+  res.json(episodes.map(ep => ({
+    ...ep.toObject(), youtubeUrl: '', files: [],
+    locked: courseDoc.isPaid && !ep.isFreePreview,
+  })));
+}));
+
 // ── Single episode (access-enforced) ─────────────────────
 router.get('/:id', protect, asyncHandler(async (req, res) => {
   const episode = await Episode.findById(req.params.id)

@@ -29,6 +29,11 @@ export default function CourseEpisodes() {
     try {
       const { data: c } = await axios.get(`${API}/courses/${slug}`);
       setCourse(c);
+      if (!user) {   // visitor: lesson outline only, no video links
+        const { data: outline } = await axios.get(`${API}/episodes/outline/${c._id}`);
+        setEpisodes(outline);
+        return;
+      }
       const [eps, mine, prog, live] = await Promise.all([
         axios.get(`${API}/episodes?course=${c._id}`),
         axios.get(`${API}/courses/my/enrollments`),
@@ -46,11 +51,14 @@ export default function CourseEpisodes() {
     } finally {
       setLoading(false);
     }
-  }, [slug]);
+  }, [slug, user]);
 
   useEffect(() => { load(); }, [load]);
 
+  const signIn = () => navigate(`/login?redirect=${encodeURIComponent(`/courses/${slug}`)}`);
+
   const enroll = async () => {
+    if (!user) return signIn();
     try {
       await axios.post(`${API}/courses/${course._id}/enroll`);
       setToast('Enrolled! Start learning 🎉');
@@ -214,7 +222,7 @@ export default function CourseEpisodes() {
               </div>
             )}
             {!course.isPaid && !status && (
-              <button className="btn btn-primary" onClick={enroll}>Enroll free</button>
+              <button className="btn btn-primary" onClick={enroll}>{user ? 'Enroll free' : 'Sign in to start free'}</button>
             )}
           </div>
         </div>

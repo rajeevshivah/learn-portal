@@ -114,7 +114,7 @@ export default function PaymentsTab({ onChange }) {
                   </td>
                   <td>{r.course?.title}</td>
                   <td style={{ fontWeight: 600 }}>₹{r.amount}</td>
-                  <td><code style={{ fontSize: 12.5, userSelect: 'all' }}>{r.utr}</code></td>
+                  <td><code style={{ fontSize: 12.5, userSelect: 'all' }}>{r.utr}</code>{r.dupUtr && <div className="badge badge-danger" style={{ marginTop: 4 }}>UTR used before</div>}</td>
                   <td>{r.screenshotUrl ? <a href={r.screenshotUrl} target="_blank" rel="noreferrer">View</a> : <span className="muted small">—</span>}</td>
                   <td className="small muted">{new Date(r.updatedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</td>
                   {view === 'pending' ? (

@@ -105,11 +105,13 @@ const regRow = (r) => ({
   phone: r.phone, college: r.college, amount: r.amount, utr: r.utr,
   screenshotUrl: r.screenshotUrl || undefined, expectation: r.expectation || undefined,
   attended: r.attended, event: r.event?.title, registeredIST: IST(r.createdAt),
+  ...(r.dupUtr ? { warning: 'UTR already used on another payment. Do not approve without checking.' } : {}),
 });
 const enrollRow = (e) => ({
   paymentId: e._id, status: e.status, name: e.user?.name, email: e.user?.email,
   course: e.course?.title, amount: e.amount, utr: e.utr, screenshotUrl: e.screenshotUrl || undefined,
   rejectReason: e.rejectReason || undefined, updatedIST: IST(e.updatedAt),
+  ...(e.dupUtr ? { warning: 'UTR already used on another payment. Do not approve without checking.' } : {}),
 });
 const lessonRow = (ep) => ({
   lessonId: ep._id, number: ep.episodeNumber, title: ep.title, course: ep.course?.title || id(ep.course),
@@ -304,7 +306,7 @@ tool('list_registrations', 'read', 'Registrations for one event (name, email, ph
   { eventId: zId('event'), status: z.enum(['pending', 'active', 'rejected']).optional() },
   async ({ eventId, status }) => (await api('GET', `events/${eventId}/registrations`, { query: { status } })).map(regRow));
 
-tool('list_pending_registrations', 'read', 'All webinar registrations waiting for UPI payment approval, oldest first. Check the UTR against your UPI app before approving.',
+tool('list_pending_registrations', 'read', 'All webinar registrations waiting for UPI payment approval, oldest first. Check the UTR against your UPI app before approving. Rows with a "warning" reuse a UTR seen on another payment: never approve those without asking the admin.',
   {}, async () => (await api('GET', 'events/admin/pending')).map(regRow));
 
 tool('approve_registration', 'write', 'Approve a pending webinar registration (unlocks WhatsApp link, join links and recordings for that student).',
@@ -431,7 +433,7 @@ tool('delete_lesson_file', 'destructive', 'Remove one uploaded file from a lesso
 // ─────────────────────────────────────────────────────────
 // COURSE PAYMENTS
 // ─────────────────────────────────────────────────────────
-tool('list_pending_course_payments', 'read', 'Course purchases paid by UPI waiting for approval, oldest first. Match the UTR in your UPI app before approving.',
+tool('list_pending_course_payments', 'read', 'Course purchases paid by UPI waiting for approval, oldest first. Match the UTR in your UPI app before approving. Rows with a "warning" reuse a UTR seen on another payment: never approve those without asking the admin.',
   {}, async () => (await api('GET', 'payments/pending')).map(enrollRow));
 
 tool('list_course_payment_history', 'read', 'Course purchases (latest 200), optionally filtered by status.',

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -8,16 +9,17 @@ export default function Courses() {
   const [courses, setCourses] = useState([]);
   const [myMap, setMyMap] = useState({});
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
   useEffect(() => {
-    Promise.all([
+    Promise.allSettled([
       axios.get(`${API}/courses`),
-      axios.get(`${API}/courses/my/enrollments`),
+      user ? axios.get(`${API}/courses/my/enrollments`) : Promise.resolve({ data: [] }),
     ]).then(([all, mine]) => {
-      setCourses(all.data);
-      setMyMap(Object.fromEntries(mine.data.map(e => [String(e.course._id), e.status])));
-    }).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+      if (all.status === 'fulfilled') setCourses(all.value.data);
+      if (mine.status === 'fulfilled') setMyMap(Object.fromEntries(mine.value.data.map(e => [String(e.course._id), e.status])));
+    }).finally(() => setLoading(false));
+  }, [user]);
 
   if (loading) return <div className="spinner-page">Loading courses…</div>;
 

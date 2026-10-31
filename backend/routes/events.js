@@ -163,6 +163,27 @@ router.get('/', protect, asyncHandler(async (req, res) => {
   res.json(shaped);
 }));
 
+// ── GET /api/events/public — PUBLIC list of programs open for registration ──
+// For the logged-out homepage. Same safe fields as /public/:slug, no payment details.
+router.get('/public', asyncHandler(async (req, res) => {
+  const events = await LiveEvent.find({ isPublished: true, isCompleted: { $ne: true } })
+    .select('type title slug description thumbnail isPaid price mrp startsAt sessions seatLimit registrationClosesAt isPublished isCompleted')
+    .sort({ startsAt: 1 });
+  const open = events.filter(e => isRegistrationOpen(e));
+  res.json(await Promise.all(open.map(async (e) => {
+    const out = {
+      _id: e._id, type: e.type, title: e.title, slug: e.slug, description: e.description,
+      thumbnail: e.thumbnail, isPaid: e.isPaid, price: e.price, mrp: e.mrp, startsAt: e.startsAt,
+      classCount: (e.sessions || []).length,
+    };
+    if (e.seatLimit > 0) {
+      const taken = await Registration.countDocuments({ event: e._id, status: { $in: ['active', 'pending'] } });
+      out.seatsLeft = Math.max(0, e.seatLimit - taken);
+    }
+    return out;
+  })));
+}));
+
 // ── GET /api/events/public/:slug — PUBLIC event detail ───
 // No login required. Safe subset only — never leaks joinUrl or whatsappLink.
 // Used by the shareable /live/:slug funnel page for logged-out visitors.
@@ -520,7 +541,8 @@ router.get('/admin/pending', protect, adminOnly, asyncHandler(async (req, res) =
     .populate('user', 'name email avatar')
     .populate('event', 'title slug type price')
     .sort({ updatedAt: 1 });   // oldest first — fair queue
-  res.json(pending);
+  const { markDuplicateUtrs } = require('../utils/duplicateUtr');
+  res.json(await markDuplicateUtrs(pending));
 }));
 
 // ── PUT /api/events/registrations/:id/approve ────────────

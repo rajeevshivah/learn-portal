@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import PaymentsTab from './admin/PaymentsTab';
 import CoursesTab  from './admin/CoursesTab';
@@ -9,10 +9,12 @@ import SettingsTab from './admin/SettingsTab';
 import DoubtsTab   from './admin/DoubtsTab';
 import EventsTab   from './admin/EventsTab';
 import PollsTab    from './admin/PollsTab';
+import TodayTab    from './admin/TodayTab';
 
 const API = import.meta.env.VITE_API_URL;
 
 const TABS = [
+  { id: 'today',    label: 'Today' },
   { id: 'payments', label: 'Payments' },
   { id: 'courses',  label: 'Courses' },
   { id: 'episodes', label: 'Episodes' },
@@ -25,7 +27,10 @@ const TABS = [
 
 export default function Admin() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState('payments');
+  // Tab lives in the URL (?tab=events) so refresh and the back button keep your place.
+  const [params, setParams] = useSearchParams();
+  const tab = TABS.some(t => t.id === params.get('tab')) ? params.get('tab') : 'today';
+  const setTab = (id) => setParams(id === 'today' ? {} : { tab: id });
   const [pendingCount, setPendingCount] = useState(0);
   const [doubtCount, setDoubtCount] = useState(0);
   const [eventPendingCount, setEventPendingCount] = useState(0);
@@ -64,6 +69,7 @@ export default function Admin() {
           {TABS.map(t => (
             <button key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
               {t.label}
+              {t.id === 'today' && pendingCount + eventPendingCount + doubtCount > 0 && <span className="tab-count">{pendingCount + eventPendingCount + doubtCount}</span>}
               {t.id === 'payments' && pendingCount > 0 && <span className="tab-count">{pendingCount}</span>}
               {t.id === 'doubts' && doubtCount > 0 && <span className="tab-count">{doubtCount}</span>}
               {t.id === 'events' && eventPendingCount > 0 && <span className="tab-count">{eventPendingCount}</span>}
@@ -71,6 +77,7 @@ export default function Admin() {
           ))}
         </div>
 
+        {tab === 'today'    && <TodayTab goTo={setTab} onChange={() => { refreshPending(); refreshEventPending(); refreshDoubts(); }} />}
         {tab === 'payments' && <PaymentsTab onChange={refreshPending} />}
         {tab === 'courses'  && <CoursesTab />}
         {tab === 'episodes' && <EpisodesTab />}

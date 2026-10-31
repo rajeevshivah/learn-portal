@@ -5,6 +5,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import Toast from '../components/Toast';
 import { getRzpConfig, payWithRazorpay, PAYMENT_HELP_TEXT } from '../lib/razorpay';
 import { EventFeedback, Testimonials } from '../components/Feedback';
+import ClassTicket from '../components/ClassTicket';
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -230,8 +231,28 @@ export default function EventDetail() {
               )}
             </div>
 
-            {/* Right: the sticky buy card */}
+            {/* Right: confirmed students see their next class; everyone else the buy card */}
             <div className="ed-buy-wrap">
+              {isActive ? (() => {
+                const ss = [...(event.sessions || [])].sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt))
+                  .map((s, i) => ({ ...s, number: i + 1 }));
+                const next = ss.find(s => !sessionEnded(s));
+                const recs = ss.filter(s => s.recordingUrl);
+                if (next) {
+                  return <ClassTicket compact t={{ event, session: next, number: next.number, total: ss.length, lastRec: recs[recs.length - 1] }} />;
+                }
+                return (
+                  <div className="ed-buy ed-done">
+                    <div className="ed-buy-body">
+                      <div className="ed-done-title">All {ss.length} classes are done</div>
+                      <p className="small muted">{recs.length} recording{recs.length === 1 ? '' : 's'} to rewatch, with notes.</p>
+                      {event.recordingsCourse?.slug
+                        ? <Link to={`/courses/${event.recordingsCourse.slug}`} className="btn btn-primary btn-block">Watch the recordings</Link>
+                        : <a href="#recordings" className="btn btn-primary btn-block">Watch the recordings</a>}
+                    </div>
+                  </div>
+                );
+              })() : (
               <div className="ed-buy card-hover">
                 {event.thumbnail
                   ? <img className="ed-buy-thumb" src={event.thumbnail} alt={event.title} />
@@ -294,6 +315,7 @@ export default function EventDetail() {
                   </ul>
                 </div>
               </div>
+              )}
             </div>
           </div>
         </div>
@@ -350,7 +372,7 @@ export default function EventDetail() {
 
             {/* ── Recordings (confirmed students only) ── */}
             {isActive && recordings.length > 0 && (
-              <div className="card ed-recordings" style={{ marginBottom: 20, borderColor: 'var(--accent)' }}>
+              <div id="recordings" className="card ed-recordings" style={{ marginBottom: 20, borderColor: 'var(--accent)' }}>
                 <div className="ed-section-head">
                   <h2 className="ed-section-title">Class recordings</h2>
                   <span className="small muted">{recordings.length} of {dayCount} available</span>

@@ -16,7 +16,7 @@ const blankEvent = () => ({
   sessions: [blankSession()],
   isPaid: false, price: 0, mrp: 0,
   whatsappLink: '',
-  confirmationMsg: 'You are registered! Join the WhatsApp group below for the joining link and reminders.',
+  confirmationMsg: 'You’re in! Join the WhatsApp group for reminders and updates. Your Join button appears on your Home screen 15 minutes before each class.',
   seatLimit: 0,
   registrationClosesAt: '',
   isPublished: false,
@@ -303,6 +303,10 @@ export default function EventsTab({ onChange }) {
 
   const [viewingRegs, setViewingRegs] = useState(null);  // event whose attendees we're showing
   const [regs, setRegs] = useState([]);
+  const [regQuery, setRegQuery] = useState('');
+  const [regFilter, setRegFilter] = useState('all');    // all | pending | active | rejected
+  const [regSel, setRegSel] = useState(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const [recordingsFor, setRecordingsFor] = useState(null); // event id whose recordings panel is open
   const [feedbackFor, setFeedbackFor] = useState(null);     // event id whose feedback panel is open
@@ -476,8 +480,10 @@ export default function EventsTab({ onChange }) {
   };
 
   // ── registrations ──
-  const openRegs = async (ev) => {
+  const openRegs = async (ev, keepView = false) => {
     setViewingRegs(ev);
+    if (!keepView) { setRegQuery(''); setRegFilter('all'); }
+    setRegSel(new Set());
     try {
       const { data } = await axios.get(`${API}/events/${ev._id}/registrations`);
       setRegs(data);
@@ -488,7 +494,7 @@ export default function EventsTab({ onChange }) {
     try {
       await axios.put(`${API}/events/registrations/${id}/approve`);
       setToast('Approved — WhatsApp link unlocked');
-      openRegs(viewingRegs); load(); onChange?.();
+      openRegs(viewingRegs, true); load(); onChange?.();
     } catch (err) { setToast(err.response?.data?.message || 'Could not approve'); }
   };
 
@@ -498,8 +504,19 @@ export default function EventsTab({ onChange }) {
     try {
       await axios.put(`${API}/events/registrations/${id}/reject`, { reason });
       setToast('Rejected');
-      openRegs(viewingRegs); load(); onChange?.();
+      openRegs(viewingRegs, true); load(); onChange?.();
     } catch (err) { setToast(err.response?.data?.message || 'Could not reject'); }
+  };
+
+  const approveSelected = async () => {
+    setBulkBusy(true);
+    let ok = 0, fail = 0;
+    for (const id of regSel) {
+      try { await axios.put(`${API}/events/registrations/${id}/approve`); ok++; } catch { fail++; }
+    }
+    setBulkBusy(false);
+    setToast(fail ? `Approved ${ok}, ${fail} failed` : `Approved ${ok}`);
+    openRegs(viewingRegs, true); load(); onChange?.();
   };
 
   const toggleAttended = async (id) => {
@@ -550,6 +567,12 @@ export default function EventsTab({ onChange }) {
   // REGISTRATIONS VIEW
   // ───────────────────────────────────────────────
   if (viewingRegs) {
+    const q = regQuery.trim().toLowerCase();
+    const utrSeen = {};
+    regs.forEach(r => { if (r.utr) utrSeen[r.utr] = (utrSeen[r.utr] || 0) + 1; });
+    const filteredRegs = regs.filter(r =>
+      (regFilter === 'all' || r.status === regFilter) &&
+      (!q || [r.user?.name, r.user?.email, r.phone, r.college, r.utr].filter(Boolean).join(' ').toLowerCase().includes(q)));
     return (
       <div>
         <button className="btn btn-ghost btn-sm" onClick={() => { setViewingRegs(null); setRegs([]); }}>
@@ -562,13 +585,53 @@ export default function EventsTab({ onChange }) {
           )}
         </div>
 
+        {regs.length > 0 && (() => {
+          const counts = { all: regs.length, pending: 0, active: 0, rejected: 0 };
+          regs.forEach(r => { counts[r.status] = (counts[r.status] || 0) + 1; });
+          const utrCount = {};
+          regs.forEach(r => { if (r.utr) utrCount[r.utr] = (utrCount[r.utr] || 0) + 1; });
+          const shownPending = filteredRegs.filter(r => r.status === 'pending' && !(r.utr && utrCount[r.utr] > 1));
+          const allSel = shownPending.length > 0 && shownPending.every(r => regSel.has(r._id));
+          return (
+            <div className="regs-bar">
+              <input className="input regs-search" placeholder="Search name, email, phone, college or UTR"
+                value={regQuery} onChange={e => setRegQuery(e.target.value)} />
+              <div className="regs-chips">
+                {[['all', 'All'], ['pending', 'Pending'], ['active', 'Confirmed'], ['rejected', 'Rejected']].map(([k, l]) => (
+                  <button key={k} type="button" className={`btn btn-sm ${regFilter === k ? 'btn-primary' : 'btn-ghost'}`}
+                    onClick={() => { setRegFilter(k); setRegSel(new Set()); }}>{l} {counts[k] || 0}</button>
+                ))}
+              </div>
+              {shownPending.length > 0 && (
+                <div className="regs-bulk">
+                  <label className="checkbox-row small">
+                    <input type="checkbox" checked={allSel}
+                      onChange={() => setRegSel(allSel ? new Set() : new Set(shownPending.map(r => r._id)))} />
+                    Select all pending shown
+                  </label>
+                  <button className="btn btn-primary btn-sm" disabled={!regSel.size || bulkBusy} onClick={approveSelected}>
+                    {bulkBusy ? 'Approving…' : `Approve selected${regSel.size ? ` (${regSel.size})` : ''}`}
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {regs.length === 0 ? (
           <div className="empty-state">No registrations yet.</div>
+        ) : filteredRegs.length === 0 ? (
+          <div className="empty-state">No registrations match.</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {regs.map(r => (
+            {filteredRegs.map(r => (
               <div key={r._id} className="card" style={{ padding: '14px 16px' }}>
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                  {r.status === 'pending' && (
+                    <input type="checkbox" style={{ marginTop: 4 }} aria-label={`Select ${r.user?.name}`}
+                      checked={regSel.has(r._id)}
+                      onChange={() => setRegSel(s => { const n = new Set(s); n.has(r._id) ? n.delete(r._id) : n.add(r._id); return n; })} />
+                  )}
                   <div style={{ flex: '1 1 260px', minWidth: 0 }}>
                     <div style={{ fontWeight: 600 }}>{r.user?.name}</div>
                     <div className="small muted">{r.user?.email}</div>
@@ -584,6 +647,7 @@ export default function EventsTab({ onChange }) {
                     {r.utr && (
                       <div className="small muted" style={{ marginTop: 6 }}>
                         UTR: <code>{r.utr}</code> · ₹{r.amount}
+                        {utrSeen[r.utr] > 1 && <span className="badge badge-danger" style={{ marginLeft: 8 }}>UTR used twice</span>}
                         {r.screenshotUrl && (
                           <a href={r.screenshotUrl} target="_blank" rel="noreferrer" style={{ marginLeft: 8 }}>
                             View screenshot

@@ -3,7 +3,8 @@ import { useEffect } from 'react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { trackPageView } from './lib/analytics';
-import Navbar         from './components/Navbar';
+import Navbar, { PublicBar } from './components/Navbar';
+import Home           from './pages/Home';
 import Login          from './pages/Login';
 import Dashboard      from './pages/Dashboard';
 import Courses        from './pages/Courses';
@@ -20,8 +21,9 @@ import LivePublic     from './pages/LivePublic';
 
 function Protected({ children, adminOnly = false }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading) return <div className="spinner-page">Loading…</div>;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`} replace />;
   if (adminOnly && user.role !== 'admin') return <Navigate to="/dashboard" replace />;
   return (
     <>
@@ -29,6 +31,13 @@ function Protected({ children, adminOnly = false }) {
       {children}
     </>
   );
+}
+
+// Pages anyone can browse; signed-in students get the app shell, visitors a public bar.
+function Open({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return <div className="spinner-page">Loading…</div>;
+  return <>{user ? <Navbar /> : <PublicBar />}{children}</>;
 }
 
 function AppRoutes() {
@@ -43,6 +52,7 @@ function AppRoutes() {
 
   return (
     <Routes>
+      <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Home />} />
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
 
       {/* PUBLIC — shareable roadmap funnel links */}
@@ -53,8 +63,8 @@ function AppRoutes() {
       <Route path="/live/:slug" element={<LivePublic />} />
 
       <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
-      <Route path="/courses" element={<Protected><Courses /></Protected>} />
-      <Route path="/courses/:slug" element={<Protected><CourseEpisodes /></Protected>} />
+      <Route path="/courses" element={<Open><Courses /></Open>} />
+      <Route path="/courses/:slug" element={<Open><CourseEpisodes /></Open>} />
       <Route path="/episodes/:id" element={<Protected><EpisodeDetail /></Protected>} />
       <Route path="/pay/:slug" element={<Protected><Payment /></Protected>} />
       <Route path="/events" element={<Protected><Events /></Protected>} />
@@ -65,7 +75,7 @@ function AppRoutes() {
       <Route path="/admin/roadmaps" element={<Protected adminOnly><Roadmaps /></Protected>} />
 
       <Route path="/episodes" element={<Navigate to="/courses" replace />} />
-      <Route path="*" element={<Navigate to={user ? '/dashboard' : '/login'} replace />} />
+      <Route path="*" element={<Navigate to={user ? '/dashboard' : '/'} replace />} />
     </Routes>
   );
 }
