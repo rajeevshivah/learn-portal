@@ -11,14 +11,6 @@ import ClassTicket, { endOf, byStart, fmtTime, fmtEvent, sameDay } from '../comp
 
 const API = import.meta.env.VITE_API_URL;
 
-function greeting() {
-  const h = new Date().getHours();
-  if (h < 5) return 'Up late';
-  if (h < 12) return 'Good morning';
-  if (h < 17) return 'Good afternoon';
-  return 'Good evening';
-}
-
 function Bar({ completed = 0, total = 0 }) {
   const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
   return (
@@ -174,7 +166,7 @@ export default function Dashboard() {
             ? <img className="db-hello-avatar" src={user.avatar} alt="" referrerPolicy="no-referrer" />
             : <span className="db-hello-avatar db-hello-initial" aria-hidden="true">{user.name[0]}</span>}
           <div>
-            <h1>{greeting()}, {user.name.split(' ')[0]}</h1>
+            <h1>Namaste, {user.name.split(' ')[0]}</h1>
             <p>{subtitle}</p>
           </div>
         </header>
