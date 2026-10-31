@@ -7,6 +7,13 @@ import { getRzpConfig, payWithRazorpay, PAYMENT_HELP_TEXT } from '../lib/razorpa
 
 const API = import.meta.env.VITE_API_URL;
 
+// A recording opens inside the platform (its course lesson) when one exists,
+// otherwise falls back to the raw video link.
+function RecLink({ s, children, ...rest }) {
+  if (s.publishedEpisode) return <Link to={`/episodes/${s.publishedEpisode}`} {...rest}>{children}</Link>;
+  return <a href={s.recordingUrl} target="_blank" rel="noreferrer" {...rest}>{children}</a>;
+}
+
 export default function EventDetail() {
   const { slug } = useParams();
   const navigate = useNavigate();
@@ -351,12 +358,12 @@ export default function EventDetail() {
                       {isNewRec(latestRec) && <span className="badge badge-accent" style={{ marginLeft: 8 }}>New</span>}
                     </div>
                   </div>
-                  <a href={latestRec.recordingUrl} target="_blank" rel="noreferrer" className="btn btn-primary btn-sm">
-                    ▶ Watch recording
-                  </a>
+                  <RecLink s={latestRec} className="btn btn-primary btn-sm">▶ Watch recording</RecLink>
                 </div>
                 <p className="small muted" style={{ marginTop: 10 }}>
-                  Every class's recording is listed in the schedule below. Please don't share these links.
+                  {event.recordingsCourse
+                    ? <>All recordings and notes are also in your course{event.recordingsCourse.slug && <> — <Link to={`/courses/${event.recordingsCourse.slug}`}>open the course →</Link></>}</>
+                    : "Every class's recording is listed in the schedule below. Please don't share these links."}
                 </p>
               </div>
             )}
@@ -381,10 +388,9 @@ export default function EventDetail() {
                         </a>
                       )}
                       {isActive && s.recordingUrl && (
-                        <a href={s.recordingUrl} target="_blank" rel="noreferrer"
-                          className="btn btn-ghost btn-sm" style={{ marginTop: 8, display: 'inline-block' }}>
+                        <RecLink s={s} className="btn btn-ghost btn-sm" style={{ marginTop: 8, display: 'inline-block' }}>
                           ▶ Watch recording{isNewRec(s) ? ' · New' : ''}
-                        </a>
+                        </RecLink>
                       )}
                       {isActive && !s.recordingUrl && sessionEnded(s) && (
                         <div className="small muted" style={{ marginTop: 6 }}>Recording coming soon</div>

@@ -185,6 +185,10 @@ router.post('/order', protect, asyncHandler(async (req, res) => {
       return res.status(404).json({ message: 'Course not found' });
     }
     const existing = await Enrollment.findOne({ user: req.user._id, course: course._id });
+    // Webinar students already get this course free through their registration
+    if ((await require('../middleware/access').linkedCourseGrants(req.user._id, course._id)).length) {
+      return res.status(400).json({ message: 'You already have this course through your live program registration' });
+    }
     if (existing?.status === 'active' && !(existing.expiresAt && existing.expiresAt <= new Date())) {
       return res.status(400).json({ message: 'You already own this course' });
     }

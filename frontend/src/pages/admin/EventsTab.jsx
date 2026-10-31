@@ -12,6 +12,7 @@ const blankEvent = () => ({
   type: 'live-class',
   title: '', slug: '', description: '', thumbnail: '',
   course: '',
+  recordingsCourse: '',
   sessions: [blankSession()],
   isPaid: false, price: 0, mrp: 0,
   whatsappLink: '',
@@ -76,6 +77,7 @@ const jsonToForm = (raw) => {
     description:     s(raw.description, ''),
     thumbnail:       s(raw.thumbnail, ''),
     course:          s(raw.course, ''),
+    recordingsCourse: s(raw.recordingsCourse, ''),
     isPaid:          !!s(raw.isPaid, false),
     price:           Number(s(raw.price, 0)) || 0,
     mrp:             Number(s(raw.mrp, 0)) || 0,
@@ -89,10 +91,31 @@ const jsonToForm = (raw) => {
 
 
 // ── Quick recordings panel: paste a link per class, save one class at a time ──
-function RecordingsPanel({ ev, onSaved, setToast }) {
+function RecordingsPanel({ ev, courses = [], onSaved, setToast }) {
   const [drafts, setDrafts] = useState(() =>
     Object.fromEntries((ev.sessions || []).map(s => [s._id, s.recordingUrl || ''])));
   const [busy, setBusy] = useState('');
+  const [uploading, setUploading] = useState('');
+  const linkedId = ev.recordingsCourse?._id || ev.recordingsCourse || '';
+  const linked = courses.find(c => String(c._id) === String(linkedId));
+
+  const uploadNotes = async (s, file) => {
+    if (!file) return;
+    setUploading(s._id);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('label', file.name.replace(/\.[^.]+$/, ''));
+      const ext = (file.name.split('.').pop() || 'pdf').toLowerCase();
+      fd.append('fileType', ext);
+      await axios.post(`${API}/episodes/${s.publishedEpisode}/files`, fd,
+        { headers: { 'Content-Type': 'multipart/form-data' } });
+      setToast(`Notes uploaded to "${s.title}"`);
+    } catch (err) {
+      setToast(err.response?.data?.message || 'Could not upload notes');
+    } finally { setUploading(''); }
+  };
+
   const sorted = [...(ev.sessions || [])].sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
   const ended = (s) => new Date(s.startsAt).getTime() + (s.durationMins || 60) * 60000 < Date.now();
   const done = sorted.filter(s => s.recordingUrl).length;
@@ -117,6 +140,18 @@ function RecordingsPanel({ ev, onSaved, setToast }) {
         {missing > 0 && <span style={{ color: 'var(--warning)' }}> · {missing} finished class{missing > 1 ? 'es' : ''} still missing a recording</span>}
         . Only confirmed students see these links.
       </div>
+      {linked ? (
+        <div className="small" style={{ marginBottom: 10, color: 'var(--accent)' }}>
+          📚 Recordings become lessons in <strong>{linked.title}</strong>
+          {linked.isPaid ? ` (₹${linked.price})` : ''}{!linked.isPublished && ' — course is a draft, publish it in Courses to sell it'}.
+          Use 📎 Notes to attach PDFs or code to a class.
+        </div>
+      ) : (
+        <div className="small" style={{ marginBottom: 10, color: 'var(--warning)' }}>
+          No recordings course linked. Students will open recordings on YouTube. Click Edit → "Recordings course"
+          to play them inside the platform, add notes and sell them.
+        </div>
+      )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {sorted.map((s, i) => {
           const changed = (drafts[s._id] || '') !== (s.recordingUrl || '');
@@ -140,6 +175,20 @@ function RecordingsPanel({ ev, onSaved, setToast }) {
               <button className="btn btn-primary btn-sm" disabled={!changed || busy === s._id} onClick={() => save(s)}>
                 {busy === s._id ? 'Saving…' : 'Save'}
               </button>
+              {linked && s.publishedEpisode && s.recordingUrl && (
+                <>
+                  <label className="btn btn-ghost btn-sm" style={{ cursor: 'pointer' }}>
+                    {uploading === s._id ? 'Uploading…' : '📎 Notes'}
+                    <input type="file" hidden disabled={uploading === s._id}
+                      accept=".pdf,.doc,.docx,.pptx,.txt,.zip"
+                      title="PDF, Word, PowerPoint, text or ZIP (put code/notebooks in a ZIP)"
+                      onChange={e => { uploadNotes(s, e.target.files[0]); e.target.value = ''; }} />
+                  </label>
+                  <a className="btn btn-ghost btn-sm" href={`/episodes/${s.publishedEpisode}`} target="_blank" rel="noreferrer">
+                    Open lesson
+                  </a>
+                </>
+              )}
             </div>
           );
         })}
@@ -187,6 +236,7 @@ export default function EventsTab({ onChange }) {
   const startEdit = (ev) => setEditing({
     ...ev,
     course: ev.course?._id || ev.course || '',
+    recordingsCourse: ev.recordingsCourse?._id || ev.recordingsCourse || '',
     registrationClosesAt: toLocalInput(ev.registrationClosesAt),
     sessions: ev.sessions.map(s => ({ ...s, startsAt: toLocalInput(s.startsAt) })),
   });
@@ -291,6 +341,7 @@ export default function EventsTab({ onChange }) {
     const payload = {
       ...e,
       course: e.type === 'live-class' ? e.course : null,
+      recordingsCourse: e.recordingsCourse || null,
       price: Number(e.price) || 0,
       mrp:   Number(e.mrp) || 0,
       seatLimit: Number(e.seatLimit) || 0,
@@ -558,6 +609,25 @@ export default function EventsTab({ onChange }) {
           )}
 
           <div>
+            <label className="small muted" style={{ display: 'block', marginBottom: 5 }}>
+              Recordings course (optional)
+            </label>
+            <select className="input" value={e.recordingsCourse || ''} style={{ width: '100%' }}
+              onChange={ev => set('recordingsCourse', ev.target.value)}>
+              <option value="">— None: recordings stay on the event page only —</option>
+              {courses.map(c => (
+                <option key={c._id} value={c._id}>
+                  {c.title}{c.isPaid ? ` (₹${c.price})` : ' (free)'}{c.isPublished ? '' : ' · draft'}
+                </option>
+              ))}
+            </select>
+            <p className="small muted" style={{ marginTop: 4 }}>
+              Each class recording becomes a lesson in this course, played inside the platform with notes.
+              Confirmed registrants get it free; anyone else can buy the course.
+            </p>
+          </div>
+
+          <div>
             <label className="small muted" style={{ display: 'block', marginBottom: 5 }}>Title *</label>
             <input className="input" style={{ width: '100%' }} value={e.title}
               placeholder={e.type === 'workshop' ? 'e.g. Git & GitHub in One Day' : 'e.g. Doubt Session — Loops & Functions'}
@@ -822,7 +892,7 @@ export default function EventsTab({ onChange }) {
                 </div>
               </div>
               {recordingsFor === ev._id && (
-                <RecordingsPanel key={ev._id + (ev.updatedAt || '')} ev={ev} onSaved={load} setToast={setToast} />
+                <RecordingsPanel key={ev._id + (ev.updatedAt || '')} ev={ev} courses={courses} onSaved={load} setToast={setToast} />
               )}
             </div>
           ))}

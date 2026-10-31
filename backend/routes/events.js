@@ -56,6 +56,78 @@ const shapeEvent = (event, registration) => {
 };
 
 // ─────────────────────────────────────────────────────────
+// Recording → lesson sync
+// When an event has a recordingsCourse, every class recording is mirrored as
+// a lesson (Episode) in that course: same video, plus any notes uploaded to it.
+// Idempotent — safe to call after every save.
+// ─────────────────────────────────────────────────────────
+const RECORDINGS_PHASE = 'Class Recordings';
+
+async function syncLesson(event, session) {
+  const courseId = event.recordingsCourse;
+  if (!courseId) return null;
+  const url = session.recordingUrl || '';
+
+  let ep = session.publishedEpisode ? await Episode.findById(session.publishedEpisode) : null;
+  if (ep && String(ep.course) !== String(courseId)) ep = null; // course was changed → new lesson
+
+  if (ep) {
+    let changed = false;
+    if (url && ep.youtubeUrl !== url) { ep.youtubeUrl = url; changed = true; }
+    if (Boolean(url) !== ep.isPublished) { ep.isPublished = Boolean(url); changed = true; } // no recording → hide lesson
+    if (changed) await ep.save();
+    return ep;
+  }
+  if (!url) return null;
+
+  const course = await Course.findById(courseId);
+  if (!course) return null;
+  if (!course.phases.includes(RECORDINGS_PHASE)) {
+    course.phases.push(RECORDINGS_PHASE);
+    await course.save();
+  }
+
+  const ordered = [...event.sessions].sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
+  const isFirstClass = String(ordered[0]?._id) === String(session._id);
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const last = await Episode.findOne({ course: courseId }).sort({ episodeNumber: -1 }).select('episodeNumber');
+    try {
+      ep = await Episode.create({
+        course: courseId,
+        episodeNumber: (last?.episodeNumber || 0) + 1,
+        title: session.title,
+        description: `Recording of the live class held on ${new Date(session.startsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}.`,
+        phase: RECORDINGS_PHASE,
+        youtubeUrl: url,
+        duration: `${session.durationMins || 60} min`,
+        isPublished: true,
+        isFreePreview: isFirstClass, // Class 1 doubles as the free preview for buyers
+        tags: ['live-recording'],
+      });
+      break;
+    } catch (e) {
+      if (e.code !== 11000 || attempt === 2) throw e; // number taken by a parallel save → retry
+    }
+  }
+  session.publishedEpisode = ep._id;
+  return ep;
+}
+
+// Mirror every recorded session of an event; saves the event if links changed.
+async function syncAllLessons(event) {
+  if (!event.recordingsCourse) return;
+  let touched = false;
+  for (const session of event.sessions) {
+    if (!session.recordingUrl && !session.publishedEpisode) continue;
+    const before = String(session.publishedEpisode || '');
+    await syncLesson(event, session);
+    if (String(session.publishedEpisode || '') !== before) touched = true;
+  }
+  if (touched) await event.save();
+}
+
+// ─────────────────────────────────────────────────────────
 // STUDENT ROUTES
 // ─────────────────────────────────────────────────────────
 
@@ -152,7 +224,8 @@ router.get('/public/:slug', asyncHandler(async (req, res) => {
 // ── GET /api/events/:slug — single event detail ──────────
 router.get('/:slug', protect, asyncHandler(async (req, res) => {
   const event = await LiveEvent.findOne({ slug: req.params.slug })
-    .populate('course', 'title slug');
+    .populate('course', 'title slug')
+    .populate('recordingsCourse', 'title slug');
 
   if (!event || (!event.isPublished && req.user.role !== 'admin')) {
     return res.status(404).json({ message: 'Event not found' });
@@ -342,7 +415,9 @@ router.post('/', protect, adminOnly, asyncHandler(async (req, res) => {
     if (!course) return res.status(400).json({ message: 'Course not found' });
   }
 
+  if (!body.recordingsCourse) body.recordingsCourse = null;
   const event = await LiveEvent.create(body);
+  await syncAllLessons(event);
   res.status(201).json(event);
 }));
 
@@ -373,8 +448,11 @@ router.put('/:id', protect, adminOnly, asyncHandler(async (req, res) => {
     });
   }
 
+  if (body.recordingsCourse === '') body.recordingsCourse = null;
+
   Object.assign(event, body);
   await event.save();
+  await syncAllLessons(event);
   res.json(event);
 }));
 
@@ -396,9 +474,14 @@ router.put('/:id/sessions/:sessionId/recording', protect, adminOnly, asyncHandle
   if (session.recordingUrl !== url) {
     session.recordingUrl = url;
     session.recordingAddedAt = url ? new Date() : null;
-    await event.save();
   }
-  res.json({ message: url ? 'Recording saved' : 'Recording removed', session });
+  const lesson = await syncLesson(event, session);
+  await event.save();
+  res.json({
+    message: url ? (lesson ? 'Recording saved — lesson updated in the course' : 'Recording saved') : 'Recording removed',
+    session,
+    lessonId: lesson?._id || null,
+  });
 }));
 
 // ── DELETE /api/events/:id ───────────────────────────────

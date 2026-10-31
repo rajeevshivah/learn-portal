@@ -42,7 +42,29 @@ router.get('/my/enrollments', protect, asyncHandler(async (req, res) => {
   const enrollments = await Enrollment.find({ user: req.user._id })
     .populate('course', 'title slug thumbnail isPaid price level isPublished accessDays')
     .sort({ updatedAt: -1 });
-  res.json(enrollments.filter(e => e.course)); // guard against deleted courses
+  const list = enrollments.filter(e => e.course).map(e => e.toObject()); // guard against deleted courses
+
+  // Recordings courses unlocked through a confirmed live-event registration.
+  // They behave like a lifetime enrollment and replace any pending/rejected/expired row.
+  const { linkedCourseGrants } = require('../middleware/access');
+  const grants = await linkedCourseGrants(req.user._id);
+  if (grants.length) {
+    const courses = await Course.find({ _id: { $in: grants.map(g => g.course) } })
+      .select('title slug thumbnail isPaid price level isPublished accessDays');
+    for (const c of courses) {
+      const i = list.findIndex(e => String(e.course._id) === String(c._id));
+      const own = i >= 0 ? list[i] : null;
+      const ownActive = own && own.status === 'active' && !(own.expiresAt && new Date(own.expiresAt) <= new Date());
+      if (ownActive) continue;
+      const g = grants.find(x => String(x.course) === String(c._id));
+      const row = {
+        _id: `event-${g.event._id}`, course: c, status: 'active', amount: 0,
+        expiresAt: null, viaEvent: { title: g.event.title, slug: g.event.slug },
+      };
+      if (i >= 0) list[i] = row; else list.unshift(row);
+    }
+  }
+  res.json(list);
 }));
 
 // ── PUBLIC: a course's roadmap ───────────────────────────

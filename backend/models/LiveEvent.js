@@ -43,6 +43,14 @@ const liveEventSchema = new mongoose.Schema({
 
   sessions: [sessionSchema],
 
+  // Recordings course: each class recording becomes a lesson in this course.
+  // Confirmed registrants get free access to it; others can buy it like any course.
+  recordingsCourse: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Course',
+    default: null,
+  },
+
   // ── Pricing ──
   isPaid: { type: Boolean, default: false },
   price:  { type: Number, default: 0 },   // INR — you said ₹50 / ₹100 as a seriousness filter
@@ -104,6 +112,7 @@ liveEventSchema.pre('validate', function (next) {
 });
 
 liveEventSchema.index({ isPublished: 1, isCompleted: 1 });
+liveEventSchema.index({ recordingsCourse: 1 });
 liveEventSchema.index({ course: 1 });
 
 module.exports = mongoose.model('LiveEvent', liveEventSchema);

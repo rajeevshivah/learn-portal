@@ -57,6 +57,10 @@ router.post('/submit', protect, uploadImage.single('screenshot'), asyncHandler(a
   }
 
   let enrollment = await Enrollment.findOne({ user: req.user._id, course: course._id });
+  // Webinar students already get this course free through their registration
+  if ((await require('../middleware/access').linkedCourseGrants(req.user._id, course._id)).length) {
+    return res.status(400).json({ message: 'You already have this course through your live program registration' });
+  }
 
   if (enrollment && enrollment.status === 'active') {
     const expired = enrollment.expiresAt && enrollment.expiresAt <= new Date();
