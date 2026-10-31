@@ -25,6 +25,11 @@ const isRegistrationOpen = (event) => {
   return first ? first > now : false;
 };
 
+// After registration closes, a program is visible only to people who registered
+// (any status, so pending/rejected students still see their status). Admins see all.
+const hiddenFrom = (event, registration, user) =>
+  user?.role !== 'admin' && event.hideWhenClosed !== false && !registration && !isRegistrationOpen(event);
+
 // Session list for a student: join + recording links only for confirmed
 // registrations. Everyone else just learns whether a recording exists.
 const shapeSessions = (sessions, active) => (sessions || []).map(s => ({
@@ -157,7 +162,9 @@ router.get('/', protect, asyncHandler(async (req, res) => {
   const byEvt = {};
   mine.forEach(r => { byEvt[String(r.event)] = r; });
 
-  let shaped = events.map(e => shapeEvent(e, byEvt[String(e._id)]));
+  let shaped = events
+    .filter(e => !hiddenFrom(e, byEvt[String(e._id)], req.user))
+    .map(e => shapeEvent(e, byEvt[String(e._id)]));
 
   // Upcoming events sort by their real start time (a virtual, so done in JS)
   if (scope === 'upcoming') {
@@ -198,6 +205,10 @@ router.get('/public/:slug', asyncHandler(async (req, res) => {
 
   if (!event || !event.isPublished) {
     return res.status(404).json({ message: 'Event not found' });
+  }
+  // Closed programs stay private: old shared links show a 'registration closed' page.
+  if (event.hideWhenClosed !== false && !isRegistrationOpen(event)) {
+    return res.status(404).json({ message: 'Registration for this program has closed.', closed: true, title: event.title, slug: event.slug });
   }
 
   const obj = event.toObject();
@@ -259,6 +270,9 @@ router.get('/:slug', protect, asyncHandler(async (req, res) => {
   const registration = await Registration.findOne({
     user: req.user._id, event: event._id,
   });
+  if (hiddenFrom(event, registration, req.user)) {
+    return res.status(404).json({ message: 'Registration for this program has closed.', closed: true });
+  }
 
   const shaped = shapeEvent(event, registration);
 

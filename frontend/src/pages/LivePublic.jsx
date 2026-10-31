@@ -50,7 +50,8 @@ export default function LivePublic() {
       setEvent(data);
     } catch (e) {
       const status = e.response?.status;
-      if (status === 404) setErrKind('notfound');
+      if (status === 404 && e.response?.data?.closed) setErrKind('closed');
+      else if (status === 404) setErrKind('notfound');
       else setErrKind('network');
       setToast(e.response?.data?.message || 'Could not load this session — please retry.');
     } finally {
@@ -70,6 +71,23 @@ export default function LivePublic() {
 
   // Distinguish a genuinely missing event from a transient load failure so a
   // network blip never permanently reads as "Session not found."
+  if (!event && errKind === 'closed') {
+    return (
+      <div className="page">
+        <div className="container section" style={{ maxWidth: 560, textAlign: 'center' }}>
+          <h1 style={{ fontSize: 22, marginBottom: 10 }}>Registration has closed</h1>
+          <p className="muted small" style={{ marginBottom: 18 }}>
+            This program is now running for registered students only.
+          </p>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <Link to={`/login?redirect=${encodeURIComponent(`/events/${slug}`)}`} className="btn btn-primary">Registered? Sign in to join</Link>
+            <Link to="/" className="btn btn-ghost">See open programs</Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!event) {
     return (
       <div className="page">

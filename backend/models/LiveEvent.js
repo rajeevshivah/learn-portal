@@ -74,6 +74,8 @@ const liveEventSchema = new mongoose.Schema({
   isPublished: { type: Boolean, default: false },
   // Manually mark an event finished so it drops out of "upcoming".
   isCompleted: { type: Boolean, default: false },
+  // Once registration closes, only registered students (and admins) can see it.
+  hideWhenClosed: { type: Boolean, default: true },
 }, { timestamps: true });
 
 // Virtual: when does the whole event begin / end?

@@ -21,6 +21,7 @@ const blankEvent = () => ({
   registrationClosesAt: '',
   isPublished: false,
   isCompleted: false,
+  hideWhenClosed: true,
 });
 
 // <input type="datetime-local"> needs 'YYYY-MM-DDTHH:mm' in LOCAL time.
@@ -961,6 +962,11 @@ export default function EventsTab({ onChange }) {
               <input type="checkbox" checked={e.isCompleted}
                 onChange={ev => set('isCompleted', ev.target.checked)} />
               Completed (moves to "Past")
+            </label>
+            <label className="small muted" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input type="checkbox" checked={e.hideWhenClosed !== false}
+                onChange={ev => set('hideWhenClosed', ev.target.checked)} />
+              After registration closes, show only to registered students
             </label>
           </div>
 

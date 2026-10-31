@@ -23,6 +23,7 @@ export default function EventDetail() {
   const [event, setEvent]     = useState(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast]     = useState('');
+  const [closed, setClosed]   = useState(false);   // registration closed and not registered
 
   // registration form
   const [form, setForm] = useState({ phone: '', college: '', expectation: '', utr: '' });
@@ -43,7 +44,8 @@ export default function EventDetail() {
       const { data } = await axios.get(`${API}/events/${slug}`);
       setEvent(data);
     } catch (e) {
-      setToast(e.response?.data?.message || 'Could not load this event');
+      if (e.response?.data?.closed) setClosed(true);
+      else setToast(e.response?.data?.message || 'Could not load this event');
     } finally {
       setLoading(false);
     }
@@ -101,6 +103,17 @@ export default function EventDetail() {
   };
 
   if (loading) return <div className="spinner-page">Loading…</div>;
+  if (!event && closed) {
+    return (
+      <div className="page">
+        <div className="container section" style={{ maxWidth: 560, textAlign: 'center' }}>
+          <h1 style={{ fontSize: 22, marginBottom: 10 }}>Registration has closed</h1>
+          <p className="muted small" style={{ marginBottom: 18 }}>This program is running for registered students only.</p>
+          <Link to="/events" className="btn btn-primary">See open programs</Link>
+        </div>
+      </div>
+    );
+  }
   if (!event)  return <div className="spinner-page">Event not found.</div>;
 
   const reg        = event.myRegistration;

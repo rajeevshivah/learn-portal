@@ -210,6 +210,7 @@ const eventFields = {
   seatLimit: z.number().int().min(0).optional().describe('0 = unlimited'),
   registrationClosesAt: zIST.nullable().optional(),
   isPublished: z.boolean().optional(), isCompleted: z.boolean().optional(),
+  hideWhenClosed: z.boolean().optional().describe('true (default): after registration closes, only registered students can see the program'),
   recordingsCourseId: zId('course').nullable().optional().describe('Course that receives class recordings as lessons; null to unlink'),
 };
 const mapEventFields = (a) => {
