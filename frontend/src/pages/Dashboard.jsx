@@ -166,7 +166,7 @@ export default function Dashboard() {
             ? <img className="db-hello-avatar" src={user.avatar} alt="" referrerPolicy="no-referrer" />
             : <span className="db-hello-avatar db-hello-initial" aria-hidden="true">{user.name[0]}</span>}
           <div>
-            <h1>Namaste, {user.name.split(' ')[0]}</h1>
+            <h1><span lang="hi" className="db-namaste">नमस्ते</span>, {user.name.split(' ')[0]}</h1>
             <p>{subtitle}</p>
           </div>
         </header>

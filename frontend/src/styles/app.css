@@ -430,3 +430,4 @@
   .db-row-thumb { width: 84px; }
   .ev-list-thumb { width: 100%; }
 }
+.db-namaste { font-family: 'Noto Sans Devanagari', var(--font-display); font-weight: 600; }
