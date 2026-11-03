@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { RecLink } from './RecordingPlayer';
 
 export const JOIN_EARLY_MS = 15 * 60000;   // Join button opens 15 min before class
 export const endOf = (s) => new Date(s.startsAt).getTime() + (s.durationMins || 60) * 60000;
@@ -21,10 +22,7 @@ export function startsIn(target) {
   return `in ${d} day${d > 1 ? 's' : ''}`;
 }
 
-export function RecLink({ s, children, ...rest }) {
-  if (s.publishedEpisode) return <Link to={`/episodes/${s.publishedEpisode}`} {...rest}>{children}</Link>;
-  return <a href={s.recordingUrl} target="_blank" rel="noreferrer" {...rest}>{children}</a>;
-}
+export { RecLink } from './RecordingPlayer';
 
 // ── The class ticket: tonight's (or the next) class for a registered program ──
 export default function ClassTicket({ t, compact = false }) {

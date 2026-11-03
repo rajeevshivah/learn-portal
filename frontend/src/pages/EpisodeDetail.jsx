@@ -3,15 +3,9 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import Toast from '../components/Toast';
 import { useAuth } from '../context/AuthContext';
+import { toEmbed } from '../lib/youtube';
 
 const API = import.meta.env.VITE_API_URL;
-
-// watch?v=XYZ | youtu.be/XYZ | shorts/XYZ -> embed URL
-const toEmbed = (url) => {
-  if (!url) return '';
-  const m = url.match(/(?:v=|youtu\.be\/|shorts\/|embed\/)([\w-]{11})/);
-  return m ? `https://www.youtube-nocookie.com/embed/${m[1]}?rel=0` : '';
-};
 
 export default function EpisodeDetail() {
   const { id } = useParams();

@@ -6,16 +6,12 @@ import Toast from '../components/Toast';
 import { getRzpConfig, payWithRazorpay, PAYMENT_HELP_TEXT } from '../lib/razorpay';
 import { EventFeedback, Testimonials } from '../components/Feedback';
 import ClassTicket from '../components/ClassTicket';
+import { RecLink } from '../components/RecordingPlayer';
 
 const API = import.meta.env.VITE_API_URL;
 
 // A recording opens inside the platform (its course lesson) when one exists,
 // otherwise falls back to the raw video link.
-function RecLink({ s, children, ...rest }) {
-  if (s.publishedEpisode) return <Link to={`/episodes/${s.publishedEpisode}`} {...rest}>{children}</Link>;
-  return <a href={s.recordingUrl} target="_blank" rel="noreferrer" {...rest}>{children}</a>;
-}
-
 export default function EventDetail() {
   const { slug } = useParams();
   const navigate = useNavigate();
