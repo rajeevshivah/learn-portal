@@ -83,7 +83,7 @@ const id = (x) => (x && typeof x === 'object' ? x._id : x) || null;
 const shapeSession = (s, i) => ({
   sessionId: s._id, number: i + 1, title: s.title, startsAtIST: IST(s.startsAt), startsAt: s.startsAt,
   durationMins: s.durationMins, joinUrl: s.joinUrl || '', recordingUrl: s.recordingUrl || '',
-  lessonId: s.publishedEpisode || null,
+  lessonId: s.publishedEpisode || null, notesPdf: s.notesUrl || undefined,
 });
 const sortSessions = (ss = []) => [...ss].sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
 const eventSummary = (e) => {
@@ -503,6 +503,34 @@ tool('moderate_doubt', 'write', 'Close a doubt thread for new replies (locked: t
   { doubtId: zId('doubt'), locked: z.boolean().optional(), hidden: z.boolean().optional() },
   ({ doubtId, locked, hidden }) => api('PUT', `questions/${doubtId}/moderate`, { body: { locked, hidden } }));
 tool('delete_doubt', 'destructive', 'Permanently delete a doubt and all its replies.', { doubtId: zId('doubt') }, ({ doubtId }) => api('DELETE', `questions/${doubtId}`));
+
+// ─────────────────────────────────────────────────────────
+// WHITEBOARDS (teaching board; pages become class notes)
+// ─────────────────────────────────────────────────────────
+const boardLink = (id) => `https://learn.rajeevshivah.me/admin/board/${id}`;
+const boardRow = (b) => ({ boardId: b._id, title: b.title, pages: b.pages, link: boardLink(b._id),
+  class: b.session ? `Class ${b.session.number}: ${b.session.title}` : 'Not linked to a class', program: b.event?.title,
+  notesPublished: Boolean(b.notes), notesPdf: b.notes?.url, notesPublishedIST: b.notes ? IST(b.notes.publishedAt) : undefined,
+  editedIST: IST(b.updatedAt) });
+
+tool('list_whiteboards', 'read', 'All teaching whiteboards, newest first: which class each belongs to, page count, and whether its notes PDF is published to students.',
+  {}, async () => (await api('GET', 'boards')).map(boardRow));
+tool('open_class_whiteboard', 'write', 'Get the whiteboard for one class (creates it on first use) and return its link to open on the laptop. Publishing notes is done on the board itself (it builds the PDF in the browser).',
+  { eventId: zId('event'), classId: zId('class (session)') }, async ({ eventId, classId }) => {
+    const { _id } = await api('POST', 'boards/for-class', { body: { eventId, sessionId: classId } });
+    return { boardId: _id, link: boardLink(_id) };
+  });
+tool('create_whiteboard', 'write', 'Create a blank whiteboard not tied to any class (for a demo, a mentoring call or rough work). Returns its link.',
+  { title: z.string().max(160).optional() }, async ({ title }) => {
+    const { _id } = await api('POST', 'boards', { body: { title } });
+    return { boardId: _id, link: boardLink(_id) };
+  });
+tool('rename_whiteboard', 'write', 'Rename a whiteboard (also the notes PDF name next time it is published).',
+  { boardId: zId('board'), title: z.string().min(1).max(160) }, ({ boardId, title }) => api('PUT', `boards/${boardId}`, { body: { title } }));
+tool('unpublish_whiteboard_notes', 'destructive', 'Take a whiteboard\'s notes PDF away from students (removed from the class schedule and from the recording lesson). The board itself is kept.',
+  { boardId: zId('board') }, ({ boardId }) => api('DELETE', `boards/${boardId}/notes`));
+tool('delete_whiteboard', 'destructive', 'Permanently delete a whiteboard, all its pages, and its published notes.',
+  { boardId: zId('board') }, ({ boardId }) => api('DELETE', `boards/${boardId}`));
 
 // ─────────────────────────────────────────────────────────
 // POLLS & TOPIC SUGGESTIONS

@@ -37,6 +37,7 @@ app.use('/api/promotions',  require('./routes/promotions'));
 app.use('/api/rzp',         require('./routes/razorpay'));
 app.use('/api/apikeys',     require('./routes/apikeys'));
 app.use('/api/feedback',    require('./routes/feedback'));
+app.use('/api/boards',      require('./routes/boards'));
 
 // Health check
 app.get('/', (req, res) => res.json({ message: 'Learn Portal API running' }));

@@ -325,7 +325,7 @@ a.today-q:hover { color: var(--accent); }
 .today-amt { font-family: var(--font-display); font-weight: 700; color: var(--text); }
 .today-meta { font-size: 13px; color: var(--text-2); margin-top: 2px; overflow-wrap: anywhere; }
 .today-dup { font-size: 13px; color: var(--danger); font-weight: 600; margin-top: 4px; }
-.today-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.today-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .today-live { font-size: 11.5px; font-weight: 700; color: #1C1405; background: var(--diya); border-radius: 6px; padding: 1px 7px; }
 .today-warn-btn { background: var(--warning-soft); color: var(--warning); border-color: rgba(251, 191, 36, .35); }
 .today-rec { display: flex; gap: 8px; flex: 1 1 320px; }
@@ -579,3 +579,12 @@ a.today-q:hover { color: var(--accent); }
   .dq-hint { display: none; }
   .dq-lesson { max-width: none; flex: 1; }
 }
+
+/* ═══ Whiteboards list ═══ */
+.bd-page { max-width: 860px; }
+.bd-title { font-size: 24px; margin: 0; }
+.bd-sub { color: var(--text-2); font-size: 14px; margin: -4px 0 20px; max-width: 62ch; }
+.bd-sec { margin-bottom: 24px; }
+.bd-link { color: inherit; }
+.bd-link:hover .db-row-title { color: var(--accent); }
+@media (max-width: 720px) { .bd-page .db-row { flex-wrap: wrap; } }

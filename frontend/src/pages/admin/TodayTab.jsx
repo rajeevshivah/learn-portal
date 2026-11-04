@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { openClassBoard } from '../../lib/openBoard';
 import Toast from '../../components/Toast';
 
 const API = import.meta.env.VITE_API_URL;
@@ -20,6 +21,7 @@ const ago = (d) => {
 };
 
 export default function TodayTab({ goTo, onChange }) {
+  const navigate = useNavigate();
   const [regs, setRegs] = useState([]);
   const [pays, setPays] = useState([]);
   const [doubts, setDoubts] = useState([]);
@@ -156,9 +158,19 @@ export default function TodayTab({ goTo, onChange }) {
                     </div>
                     <div className="today-meta">{ev.title}, {fmtDay(s.startsAt)} at {fmtTime(s.startsAt)}</div>
                   </div>
-                  {s.joinUrl
-                    ? <span className="badge badge-success">Join link set</span>
-                    : <button className="btn btn-sm today-warn-btn" onClick={() => goTo('events')}>Add join link</button>}
+                  <div className="today-actions">
+                    {s.joinUrl
+                      ? <span className="badge badge-success">Join link set</span>
+                      : <button className="btn btn-sm today-warn-btn" onClick={() => goTo('events')}>Add join link</button>}
+                    <button className="btn btn-ghost btn-sm" disabled={busy === 'wb' + s._id}
+                      onClick={async () => {
+                        setBusy('wb' + s._id);
+                        try { await openClassBoard(navigate, ev._id, s._id); }
+                        catch (err) { setToast(err.response?.data?.message || 'Could not open the whiteboard'); setBusy(''); }
+                      }}>
+                      {busy === 'wb' + s._id ? 'Opening…' : 'Whiteboard'}
+                    </button>
+                  </div>
                 </div>
               );
             })}

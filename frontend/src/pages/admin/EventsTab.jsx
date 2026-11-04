@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import Toast from '../../components/Toast';
+import { useNavigate } from 'react-router-dom';
+import { openClassBoard } from '../../lib/openBoard';
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -93,6 +95,7 @@ const jsonToForm = (raw) => {
 
 // ── Quick recordings panel: paste a link per class, save one class at a time ──
 function RecordingsPanel({ ev, courses = [], onSaved, setToast }) {
+  const navigate = useNavigate();
   const [drafts, setDrafts] = useState(() =>
     Object.fromEntries((ev.sessions || []).map(s => [s._id, s.recordingUrl || ''])));
   const [busy, setBusy] = useState('');
@@ -176,6 +179,10 @@ function RecordingsPanel({ ev, courses = [], onSaved, setToast }) {
               <button className="btn btn-primary btn-sm" disabled={!changed || busy === s._id} onClick={() => save(s)}>
                 {busy === s._id ? 'Saving…' : 'Save'}
               </button>
+              <button className="btn btn-ghost btn-sm" onClick={async () => {
+                try { await openClassBoard(navigate, ev._id, s._id); }
+                catch (err) { setToast(err.response?.data?.message || 'Could not open the whiteboard'); }
+              }}>{s.notesUrl ? 'Whiteboard ✓' : 'Whiteboard'}</button>
               {linked && s.publishedEpisode && s.recordingUrl && (
                 <>
                   <label className="btn btn-ghost btn-sm" style={{ cursor: 'pointer' }}>

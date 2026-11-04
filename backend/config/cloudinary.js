@@ -38,4 +38,19 @@ const uploadImage = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
 });
 
-module.exports = { cloudinary, upload, uploadImage };
+// Whiteboard notes (PDF made in the browser from the board pages)
+const boardStorage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'learn-portal/boards',
+    resource_type: 'raw',
+    allowed_formats: ['pdf'],
+  },
+});
+
+const uploadBoardPdf = multer({
+  storage: boardStorage,
+  limits: { fileSize: 25 * 1024 * 1024 },
+});
+
+module.exports = { cloudinary, upload, uploadImage, uploadBoardPdf };

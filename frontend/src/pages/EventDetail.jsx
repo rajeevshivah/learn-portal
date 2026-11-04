@@ -440,6 +440,11 @@ export default function EventDetail() {
                           ▶ Watch recording{isNewRec(s) ? ' · New' : ''}
                         </RecLink>
                       )}
+                      {isActive && s.notesUrl && (
+                        <a href={s.notesUrl} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm" style={{ marginTop: 8, display: 'inline-block' }}>
+                          Class notes (PDF)
+                        </a>
+                      )}
                       {isActive && !s.recordingUrl && sessionEnded(s) && (
                         <div className="small muted" style={{ marginTop: 6 }}>Recording coming soon</div>
                       )}

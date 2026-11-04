@@ -6,6 +6,7 @@ const Registration = require('../models/Registration');
 const Course       = require('../models/Course');
 const Episode      = require('../models/Episode');
 const Settings     = require('../models/Settings');
+const { attachBoardNotes } = require('../utils/boardNotes');
 const { cloudinary, uploadImage } = require('../config/cloudinary');
 const { protect, adminOnly } = require('../middleware/auth');
 
@@ -37,6 +38,8 @@ const shapeSessions = (sessions, active) => (sessions || []).map(s => ({
   joinUrl:      active ? s.joinUrl : '',
   recordingUrl: active ? s.recordingUrl : '',
   hasRecording: Boolean(s.recordingUrl),
+  notesUrl:     active ? (s.notesUrl || '') : '',
+  hasNotes:     Boolean(s.notesUrl),
 }));
 
 // Strip sensitive fields unless the student actually has access.
@@ -133,6 +136,7 @@ async function syncAllLessons(event) {
     await syncLesson(event, session);
     if (String(session.publishedEpisode || '') !== before) touched = true;
   }
+  if (await attachBoardNotes(event)) touched = true;   // whiteboard PDF follows the new lesson
   if (touched) await event.save();
 }
 
@@ -483,6 +487,7 @@ router.put('/:id', protect, adminOnly, asyncHandler(async (req, res) => {
         recordingUrl: url,
         recordingAddedAt: addedAt,
         publishedEpisode: x.publishedEpisode ?? old?.publishedEpisode ?? null,
+        notesUrl: x.notesUrl ?? old?.notesUrl ?? '',   // whiteboard notes survive form saves
       };
     });
   }
@@ -516,6 +521,7 @@ router.put('/:id/sessions/:sessionId/recording', protect, adminOnly, asyncHandle
   }
   const lesson = await syncLesson(event, session);
   await event.save();
+  if (lesson && await attachBoardNotes(event)) await event.save();
   res.json({
     message: url ? (lesson ? 'Recording saved — lesson updated in the course' : 'Recording saved') : 'Recording removed',
     session,

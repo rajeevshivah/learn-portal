@@ -7,6 +7,7 @@ const fileSchema = new mongoose.Schema({
   publicId:    { type: String, required: true },   // Cloudinary public_id (for deletion)
   fileType:    { type: String, default: 'pdf' },   // pdf | docx | pptx | zip
   size:        { type: String, default: '' },       // e.g. "2.4 MB"
+  board:       { type: mongoose.Schema.Types.ObjectId, ref: 'Board', default: null },  // set when the file is a whiteboard's notes
 }, { _id: true });
 
 const episodeSchema = new mongoose.Schema({

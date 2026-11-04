@@ -20,13 +20,16 @@ import EventDetail    from './pages/EventDetail';
 import LivePublic     from './pages/LivePublic';
 import Discuss        from './pages/Discuss';
 import Thread         from './pages/Thread';
+import Boards         from './pages/Boards';
+import Whiteboard     from './pages/Whiteboard';
 
-function Protected({ children, adminOnly = false }) {
+function Protected({ children, adminOnly = false, bare = false }) {
   const { user, loading } = useAuth();
   const location = useLocation();
   if (loading) return <div className="spinner-page">Loading…</div>;
   if (!user) return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`} replace />;
   if (adminOnly && user.role !== 'admin') return <Navigate to="/dashboard" replace />;
+  if (bare) return children;   // full-screen tools (whiteboard) skip the app shell
   return (
     <>
       <Navbar />
@@ -76,6 +79,8 @@ function AppRoutes() {
 
       <Route path="/admin" element={<Protected adminOnly><Admin /></Protected>} />
       <Route path="/admin/analytics" element={<Protected adminOnly><Analytics /></Protected>} />
+      <Route path="/admin/boards" element={<Protected adminOnly><Boards /></Protected>} />
+      <Route path="/admin/board/:id" element={<Protected adminOnly bare><Whiteboard /></Protected>} />
       <Route path="/admin/roadmaps" element={<Protected adminOnly><Roadmaps /></Protected>} />
 
       <Route path="/episodes" element={<Navigate to="/courses" replace />} />

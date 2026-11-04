@@ -18,6 +18,8 @@ const sessionSchema = new mongoose.Schema({
     ref: 'Episode',
     default: null,
   },
+  // PDF of the whiteboard used in this class (published from the Whiteboard)
+  notesUrl: { type: String, default: '' },
 }, { _id: true });
 
 const liveEventSchema = new mongoose.Schema({

@@ -62,6 +62,7 @@ function MoreSheet({ open, onClose }) {
           {user?.role === 'admin' && (
             <>
               <button className="sheet-item" onClick={() => go('/admin')}>Admin panel</button>
+              <button className="sheet-item" onClick={() => go('/admin/boards')}>Whiteboards</button>
               <button className="sheet-item" onClick={() => go('/admin/analytics')}>Analytics</button>
             </>
           )}
@@ -114,6 +115,7 @@ export default function Navbar() {
             {top('/courses', 'Courses')}
             {top('/events', 'Live')}
             {isAdmin && top('/admin', 'Admin')}
+            {isAdmin && top('/admin/boards', 'Boards')}
             {isAdmin && top('/admin/analytics', 'Analytics')}
             <button className="btn btn-ghost btn-sm" onClick={() => { logout(); navigate('/login'); }}>Log out</button>
           </nav>

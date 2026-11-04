@@ -1,0 +1,137 @@
+/* ═══ Teaching whiteboard ═══
+   The board is the only bright thing on screen; every control sits in the
+   dark margin around it so a Meet screen-share shows the writing, not the UI. */
+
+.wb-root {
+  --wb-edge: #060911;
+  --wb-panel: rgba(17, 24, 42, 0.94);
+  --wb-line: #222D4A;
+  position: fixed; inset: 0; z-index: 100;
+  display: grid; grid-template-rows: 48px 1fr 52px;
+  background: var(--wb-edge); color: var(--text);
+  user-select: none; -webkit-user-select: none; overflow: hidden;
+}
+.wb-loading, .wb-error { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; color: var(--text-2); }
+.wb-error { position: fixed; inset: 0; background: var(--wb-edge, #060911); }
+
+.wb-root svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.wb-root button:focus-visible, .wb-title:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ── Top bar ── */
+.wb-top { display: flex; align-items: center; gap: 12px; padding: 0 14px 0 10px; min-width: 0; }
+.wb-title-wrap { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex: 1; }
+.wb-title { background: none; border: 0; color: var(--text); font: 600 15px var(--font-display); padding: 4px 6px; border-radius: 6px;
+  min-width: 80px; max-width: 360px; width: 100%; text-overflow: ellipsis; }
+.wb-title:hover { background: rgba(255, 255, 255, .04); }
+.wb-class { font-size: 12.5px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wb-status { font-size: 12.5px; color: var(--text-3); white-space: nowrap; }
+.wb-status.saving, .wb-status.unsaved { color: var(--text-2); }
+.wb-status.offline { color: var(--warning); }
+.wb-top-actions { display: flex; align-items: center; gap: 6px; }
+.wb-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 9px;
+  background: none; border: 0; color: var(--text-2); cursor: pointer; }
+.wb-icon-btn:hover:not(:disabled) { background: rgba(255, 255, 255, .06); color: var(--text); }
+.wb-icon-btn:disabled { opacity: .35; cursor: default; }
+
+/* ── Stage ── */
+.wb-stage { position: relative; display: flex; align-items: center; justify-content: center; min-height: 0; margin: 0 14px 0 76px; }
+.wb-surface { position: relative; box-shadow: 0 0 0 1px rgba(255, 255, 255, .06), 0 18px 60px rgba(0, 0, 0, .55); border-radius: 4px; overflow: hidden; }
+.wb-cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.wb-live { touch-action: none; cursor: none; }
+.wb-live.tool-text { cursor: text; }
+
+.wb-text-edit { position: absolute; z-index: 2; margin: 0; padding: 0; border: 0; outline: 1px dashed rgba(92, 200, 255, .7); outline-offset: 4px;
+  background: transparent; resize: none; overflow: hidden; min-width: 40px; width: auto; field-sizing: content; white-space: pre; }
+.wb-text-edit::placeholder { color: rgba(150, 165, 190, .55); }
+
+/* ── Tool rail ── */
+.wb-rail { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); z-index: 3;
+  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 6px;
+  background: var(--wb-panel); border: 1px solid var(--wb-line); border-radius: 16px;
+  max-height: calc(100vh - 120px); overflow-y: auto; scrollbar-width: none; }
+.wb-rail::-webkit-scrollbar { display: none; }
+.wb-tool { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 11px;
+  background: none; border: 0; color: var(--text-2); cursor: pointer; flex-shrink: 0; }
+.wb-tool:hover:not(:disabled) { color: var(--text); background: rgba(255, 255, 255, .06); }
+.wb-tool.on { color: #06142A; background: var(--accent); }
+.wb-tool:disabled { opacity: .3; cursor: default; }
+.wb-sep { width: 24px; height: 1px; background: var(--wb-line); margin: 6px 0; flex-shrink: 0; }
+
+.wb-shape-wrap { position: relative; }
+.wb-pop { position: absolute; left: calc(100% + 12px); top: -6px; display: flex; gap: 2px; padding: 6px;
+  background: var(--wb-panel); border: 1px solid var(--wb-line); border-radius: 14px; }
+
+.wb-colors { display: grid; grid-template-columns: 1fr; gap: 6px; padding: 2px 0; }
+.wb-swatch { width: 26px; height: 26px; border-radius: 50%; border: 0; cursor: pointer; background: var(--sw);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .25); transition: transform .12s; }
+.wb-swatch.on { box-shadow: 0 0 0 2px var(--wb-edge), 0 0 0 4px var(--sw); transform: scale(1.05); }
+.wb-sizes { display: flex; flex-direction: column; gap: 2px; }
+.wb-size { width: 40px; height: 30px; border-radius: 9px; border: 0; background: none; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; }
+.wb-size span { display: block; border-radius: 50%; background: var(--text-3); }
+.wb-size:hover span { background: var(--text-2); }
+.wb-size.on span { background: var(--text); }
+
+/* ── Page bar ── */
+.wb-bottom { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 14px 0 76px; min-width: 0; }
+.wb-pagenav, .wb-pageopts { display: flex; align-items: center; gap: 4px; }
+.wb-pageno { background: none; border: 0; color: var(--text); font: 500 13.5px var(--font-body); padding: 6px 10px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+.wb-pageno:hover { background: rgba(255, 255, 255, .06); }
+.wb-add { display: inline-flex; align-items: center; gap: 6px; margin-left: 6px; padding: 6px 12px 6px 9px; border-radius: 999px;
+  border: 1px solid var(--wb-line); background: none; color: var(--text); font: 500 13px var(--font-body); cursor: pointer; }
+.wb-add svg { width: 16px; height: 16px; }
+.wb-add:hover { border-color: var(--border-hi); background: rgba(255, 255, 255, .04); }
+.wb-chip { background: none; border: 0; color: var(--text-2); font: 13px var(--font-body); padding: 6px 10px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+.wb-chip:hover:not(:disabled) { color: var(--text); background: rgba(255, 255, 255, .06); }
+.wb-chip:disabled { opacity: .35; cursor: default; }
+
+/* ── Page strip ── */
+.wb-strip { position: absolute; left: 76px; right: 14px; bottom: 58px; z-index: 4; padding: 12px;
+  background: var(--wb-panel); border: 1px solid var(--wb-line); border-radius: 16px; backdrop-filter: blur(10px); }
+.wb-strip-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; font-size: 13px; color: var(--text-2); }
+.wb-strip-actions { display: flex; flex-wrap: wrap; gap: 2px; }
+.wb-strip-actions button { background: none; border: 0; color: var(--text-2); font: 13px var(--font-body); padding: 5px 9px; border-radius: 7px; cursor: pointer; }
+.wb-strip-actions button:hover:not(:disabled) { color: var(--text); background: rgba(255, 255, 255, .06); }
+.wb-strip-actions button:disabled { opacity: .35; cursor: default; }
+.wb-strip-actions .danger { color: var(--danger); }
+.wb-thumbs { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+.wb-thumb { position: relative; flex-shrink: 0; padding: 0; border: 2px solid transparent; border-radius: 8px; background: none; cursor: pointer; }
+.wb-thumb.on { border-color: var(--accent); }
+.wb-thumb-cv { display: block; width: 160px; height: 90px; border-radius: 5px; }
+.wb-thumb span { position: absolute; left: 6px; bottom: 5px; font-size: 11px; font-weight: 600; padding: 0 6px; border-radius: 5px;
+  background: rgba(6, 9, 17, .8); color: var(--text); }
+
+/* ── Shortcuts + publish dialogs ── */
+.wb-keys, .wb-modal { position: absolute; inset: 0; z-index: 6; display: flex; align-items: center; justify-content: center;
+  background: rgba(3, 5, 10, .6); padding: 16px; }
+.wb-keys-card, .wb-modal-card { width: min(520px, 100%); max-height: 100%; overflow-y: auto; padding: 22px 24px;
+  background: #111829; border: 1px solid var(--wb-line); border-radius: 18px; box-shadow: 0 24px 80px rgba(0, 0, 0, .6); }
+.wb-keys-card h2, .wb-modal-card h2 { font-size: 18px; margin-bottom: 6px; }
+.wb-keys-tip, .wb-modal-sub { font-size: 13.5px; color: var(--text-2); margin-bottom: 14px; line-height: 1.55; }
+.wb-keys dl { display: grid; gap: 6px; }
+.wb-keys dl div { display: grid; grid-template-columns: 130px 1fr; gap: 12px; font-size: 13.5px; }
+.wb-keys dt { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; color: var(--text); }
+.wb-keys dd { color: var(--text-2); }
+.wb-paper { border: 0; padding: 0; margin: 0 0 16px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.wb-paper legend { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.wb-paper label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+.wb-progress { height: 4px; border-radius: 4px; background: var(--wb-line); overflow: hidden; margin-bottom: 14px; }
+.wb-progress span { display: block; height: 100%; background: var(--accent); transition: width .2s; }
+.wb-modal-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.wb-modal-foot { margin-top: 14px; font-size: 12.5px; color: var(--text-3); }
+.wb-modal-foot a { color: var(--accent); }
+
+/* ── Clean mode (U): board only, for screen sharing ── */
+.wb-root.ui-hidden { grid-template-rows: 0 1fr 0; }
+.wb-root.ui-hidden .wb-top, .wb-root.ui-hidden .wb-bottom, .wb-root.ui-hidden .wb-rail { display: none; }
+.wb-root.ui-hidden .wb-stage { margin: 0; }
+
+@media (max-width: 720px) {
+  .wb-class, .wb-status { display: none; }
+  .wb-stage { margin-left: 64px; margin-right: 6px; }
+  .wb-rail { left: 6px; padding: 6px 4px; }
+  .wb-tool { width: 36px; height: 36px; }
+  .wb-bottom { padding-left: 64px; }
+  .wb-pageopts { display: none; }
+  .wb-strip { left: 6px; right: 6px; }
+}
