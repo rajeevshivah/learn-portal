@@ -251,6 +251,11 @@ export default function EventDetail() {
                   return <>
                     {event.thumbnail && <img className="ed-buy-thumb ed-reg-thumb" src={event.thumbnail} alt={event.title} />}
                     <ClassTicket compact t={{ event, session: next, number: next.number, total: ss.length, lastRec: recs[recs.length - 1] }} />
+                    {event.recordingsCourse?.slug && (
+                      <Link to={`/courses/${event.recordingsCourse.slug}/discuss`} className="dq-entry">
+                        <span>Doubts</span><span className="small muted">Ask, or help a classmate</span>
+                      </Link>
+                    )}
                   </>;
                 }
                 return (
@@ -262,6 +267,7 @@ export default function EventDetail() {
                       {event.recordingsCourse?.slug
                         ? <Link to={`/courses/${event.recordingsCourse.slug}`} className="btn btn-primary btn-block">Watch the recordings</Link>
                         : <a href="#recordings" className="btn btn-primary btn-block">Watch the recordings</a>}
+                      {event.recordingsCourse?.slug && <Link to={`/courses/${event.recordingsCourse.slug}/discuss`} className="btn btn-ghost btn-block" style={{ marginTop: 8 }}>Doubts</Link>}
                     </div>
                   </div>
                 );

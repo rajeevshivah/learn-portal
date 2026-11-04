@@ -125,7 +125,7 @@ export default function Navbar() {
 
       <nav className="tabbar" aria-label="App">
         {tab('/dashboard', 'Home', Icon.home, p => p === '/dashboard')}
-        {tab('/courses', 'Learn', Icon.learn, p => p.startsWith('/courses') || p.startsWith('/episodes') || p.startsWith('/pay'))}
+        {tab('/courses', 'Learn', Icon.learn, p => p.startsWith('/courses') || p.startsWith('/episodes') || p.startsWith('/discuss') || p.startsWith('/pay'))}
         {tab('/events', 'Live', Icon.live, p => p.startsWith('/events'))}
         <button className={`tb-item ${more || pathname.startsWith('/admin') ? 'active' : ''}`} onClick={() => setMore(true)} aria-label="More">
           {Icon.more}<span>More</span>

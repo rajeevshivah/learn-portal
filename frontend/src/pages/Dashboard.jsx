@@ -53,8 +53,8 @@ export default function Dashboard() {
       if (all.status === 'fulfilled') setExplore(all.value.data.filter(c => !enrolledIds.has(String(c._id)) && c.episodeCount > 0));
     }).finally(() => setLoading(false));
 
-    // answered doubts are non-critical — load separately, fail silently
-    axios.get(`${API}/questions/my/answered`)
+    // new replies on my doubts are non-critical — load separately, fail silently
+    axios.get(`${API}/questions/my/activity`)
       .then(({ data }) => setAnswered(data))
       .catch(() => {});
 
@@ -272,13 +272,15 @@ export default function Dashboard() {
 
             {answered.length > 0 && (
               <section className="db-card">
-                <h3 className="db-h3">Rajeev sir answered your doubt{answered.length > 1 ? 's' : ''}</h3>
+                <h3 className="db-h3">New replies on your doubts</h3>
                 <ul className="db-answers">
                   {answered.map(q => (
                     <li key={q._id}>
-                      <Link to={`/episodes/${q.episode?._id || q.episode}`}>{q.episode?.title || 'Lesson'}</Link>
+                      <Link to={`/discuss/${q._id}`}>{q.text.replace(/```[\s\S]*?```/g, ' [code] ').replace(/\s+/g, ' ').slice(0, 90)}</Link>
                       <span className="db-meta">
-                        {q.course?.title ? `${q.course.title}, ` : ''}{new Date(q.answeredAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                        {q.byInstructor ? 'Rajeev sir' : q.lastReplyBy}
+                        {q.newReplies > 1 ? ` and ${q.newReplies - 1} more` : ''} replied
+                        {q.course?.title ? `, ${q.course.title}` : ''}
                       </span>
                     </li>
                   ))}

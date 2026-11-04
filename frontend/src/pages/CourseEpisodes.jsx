@@ -191,6 +191,9 @@ export default function CourseEpisodes() {
                   <ProgressBar completed={completedHere} total={episodes.length} />
                 </div>
               )}
+              {hasFullAccess && user && episodes.length > 0 && (
+                <Link to={`/courses/${course.slug}/discuss`} className="btn btn-ghost btn-sm" style={{ marginTop: 14 }}>Doubts</Link>
+              )}
             </div>
 
             {!hasFullAccess && (

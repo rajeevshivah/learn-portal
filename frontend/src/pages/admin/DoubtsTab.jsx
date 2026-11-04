@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
+import { Link } from 'react-router-dom';
 import Toast from '../../components/Toast';
 
 const API = import.meta.env.VITE_API_URL;
@@ -50,22 +51,27 @@ export default function DoubtsTab({ onChange }) {
       </div>
 
       {loading ? <div className="spinner-page">Loading…</div> :
-       rows.length === 0 ? <div className="empty-state">{view === 'unanswered' ? 'No unanswered doubts. All clear ✓' : 'No doubts yet.'}</div> : (
+       rows.length === 0 ? <div className="empty-state">{view === 'unanswered' ? 'Nothing waiting. Doubts that classmates already solved don’t show here.' : 'No doubts yet.'}</div> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {rows.map(q => (
             <div key={q._id} className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
                 <div className="small">
                   <strong>{q.user?.name}</strong>
-                  <span className="muted"> · {q.course?.title} · #{q.episode?.episodeNumber} {q.episode?.title}</span>
+                  <span className="muted"> · {q.course?.title} · {q.episode ? `#${q.episode.episodeNumber} ${q.episode.title}` : 'General'}</span>
                 </div>
-                <span className="small muted">{new Date(q.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                <span className="small muted">
+                  {new Date(q.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+                  {' · '}<Link to={`/discuss/${q._id}`} style={{ color: 'var(--accent)' }}>
+                    Open thread{q.replyCount ? ` (${q.replyCount} ${q.replyCount === 1 ? 'reply' : 'replies'})` : ''}
+                  </Link>
+                </span>
               </div>
               <p style={{ fontSize: 14.5, whiteSpace: 'pre-wrap', marginBottom: 10 }}>{q.text}</p>
 
               {q.isAnswered ? (
                 <div style={{ background: 'var(--success-soft)', borderRadius: 8, padding: '10px 14px' }}>
-                  <div className="small" style={{ color: 'var(--success)', fontWeight: 600, marginBottom: 4 }}>Your answer</div>
+                  <div className="small" style={{ color: 'var(--success)', fontWeight: 600, marginBottom: 4 }}>Your latest answer{q.acceptedReply ? ' · Solved' : ''}</div>
                   <p className="small" style={{ whiteSpace: 'pre-wrap' }}>{q.answer}</p>
                 </div>
               ) : (

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import { Link } from 'react-router-dom';
 import Toast from '../../components/Toast';
 
 const API = import.meta.env.VITE_API_URL;
@@ -249,8 +250,8 @@ export default function TodayTab({ goTo, onChange }) {
             {doubts.slice(0, 3).map(q => (
               <div key={q._id} className="today-row">
                 <div className="today-main">
-                  <div className="today-title today-q">{q.question || q.text}</div>
-                  <div className="today-meta">{q.user?.name}, {q.episode?.title || 'lesson'} · {ago(q.createdAt)}</div>
+                  <Link className="today-title today-q" to={`/discuss/${q._id}`}>{q.question || q.text}</Link>
+                  <div className="today-meta">{q.user?.name}, {q.episode?.title || 'General'} · {ago(q.createdAt)}{q.replyCount ? ` · ${q.replyCount} ${q.replyCount === 1 ? 'reply' : 'replies'} from students` : ''}</div>
                 </div>
               </div>
             ))}

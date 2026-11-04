@@ -18,6 +18,8 @@ import Roadmaps       from './pages/Roadmaps';
 import Events         from './pages/Events';
 import EventDetail    from './pages/EventDetail';
 import LivePublic     from './pages/LivePublic';
+import Discuss        from './pages/Discuss';
+import Thread         from './pages/Thread';
 
 function Protected({ children, adminOnly = false }) {
   const { user, loading } = useAuth();
@@ -65,6 +67,8 @@ function AppRoutes() {
       <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
       <Route path="/courses" element={<Open><Courses /></Open>} />
       <Route path="/courses/:slug" element={<Open><CourseEpisodes /></Open>} />
+      <Route path="/courses/:slug/discuss" element={<Protected><Discuss /></Protected>} />
+      <Route path="/discuss/:id" element={<Protected><Thread /></Protected>} />
       <Route path="/episodes/:id" element={<Protected><EpisodeDetail /></Protected>} />
       <Route path="/pay/:slug" element={<Protected><Payment /></Protected>} />
       <Route path="/events" element={<Protected><Events /></Protected>} />

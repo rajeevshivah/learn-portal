@@ -4,6 +4,7 @@ import axios from 'axios';
 import Toast from '../components/Toast';
 import { useAuth } from '../context/AuthContext';
 import { toEmbed } from '../lib/youtube';
+import { AskBox, ThreadList } from '../components/Discussion';
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -16,14 +17,7 @@ export default function EpisodeDetail() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState('');
   const { user } = useAuth();
-  const [questions, setQuestions] = useState([]);
-  const [doubt, setDoubt] = useState('');
-  const [asking, setAsking] = useState(false);
-
-  const loadQuestions = () => {
-    axios.get(`${API}/questions/episode/${id}`)
-      .then(({ data }) => setQuestions(data)).catch(() => {});
-  };
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     setLoading(true);
@@ -32,7 +26,6 @@ export default function EpisodeDetail() {
         setEpisode(data);
         const { data: prog } = await axios.get(`${API}/progress/course/${data.course._id || data.course}`);
         setDone(prog.some(p => String(p.episode) === String(id)));
-        loadQuestions();
       })
       .catch(err => {
         if (err.response?.status === 403 && err.response.data.requiresPayment) {
@@ -43,27 +36,6 @@ export default function EpisodeDetail() {
       })
       .finally(() => setLoading(false));
   }, [id]);
-
-  const askDoubt = async () => {
-    if (!doubt.trim()) { setToast('Type your doubt first'); return; }
-    setAsking(true);
-    try {
-      await axios.post(`${API}/questions`, { episodeId: id, text: doubt.trim() });
-      setDoubt('');
-      setToast('Doubt posted — you will get an answer here');
-      loadQuestions();
-    } catch (err) {
-      setToast(err.response?.data?.message || 'Could not post doubt');
-    } finally { setAsking(false); }
-  };
-
-  const removeDoubt = async (qid) => {
-    if (!window.confirm('Delete your question?')) return;
-    try {
-      await axios.delete(`${API}/questions/${qid}`);
-      loadQuestions();
-    } catch { setToast('Could not delete'); }
-  };
 
   const [downloading, setDownloading] = useState('');
 
@@ -174,51 +146,24 @@ export default function EpisodeDetail() {
             </div>
           </div>
         )}
-        <div className="card" style={{ marginTop: 16 }}>
-          <h2 style={{ fontSize: 15, marginBottom: 4 }}>Doubts & questions</h2>
-          <p className="small muted" style={{ marginBottom: 14 }}>Stuck on something in this lesson? Ask here — Rajeev sir answers directly.</p>
-
-          <textarea className="textarea" placeholder="Type your doubt about this lesson…"
-            value={doubt} onChange={e => setDoubt(e.target.value)} />
-          <button className="btn btn-primary btn-sm" style={{ marginTop: 8 }} disabled={asking} onClick={askDoubt}>
-            {asking ? 'Posting…' : 'Ask doubt'}
-          </button>
+        <section className="card dq-lesson-card" style={{ marginTop: 16 }}>
+          <div className="db-head">
+            <h2 className="dq-h">Doubts on this lesson</h2>
+            {courseSlug && <Link to={`/courses/${courseSlug}/discuss`} className="db-more">All course doubts</Link>}
+          </div>
+          <p className="small muted" style={{ marginBottom: 12 }}>Stuck? Ask here. Classmates can answer, and Rajeev sir replies too.</p>
+          <AskBox target={{ episodeId: id }} onAsked={() => setReloadKey(k => k + 1)} />
           {import.meta.env.VITE_MENTORHUB_URL && (
-            <p className="small muted" style={{ marginTop: 10 }}>
+            <p className="small muted" style={{ margin: '4px 0 12px' }}>
               Need deeper help than a text answer?{' '}
-              <a href={import.meta.env.VITE_MENTORHUB_URL} target="_blank" rel="noreferrer"
-                 style={{ color: 'var(--accent)' }}>
-                Book a live 1:1 session with Rajeev sir →
+              <a href={import.meta.env.VITE_MENTORHUB_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>
+                Book a live 1:1 session with Rajeev sir
               </a>
             </p>
           )}
-
-          {questions.length > 0 && <hr className="divider" />}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {questions.map(q => (
-              <div key={q._id}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  {q.user?.avatar && <img src={q.user.avatar} alt="" style={{ width: 22, height: 22, borderRadius: '50%' }} referrerPolicy="no-referrer" />}
-                  <span className="small" style={{ fontWeight: 600 }}>{q.user?.name}</span>
-                  <span className="small muted">{new Date(q.createdAt).toLocaleDateString('en-IN', { dateStyle: 'medium' })}</span>
-                  {!q.isAnswered && String(q.user?._id) === String(user?._id) && (
-                    <button className="small" style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', marginLeft: 'auto' }}
-                      onClick={() => removeDoubt(q._id)}>delete</button>
-                  )}
-                </div>
-                <p className="small" style={{ whiteSpace: 'pre-wrap' }}>{q.text}</p>
-                {q.isAnswered ? (
-                  <div style={{ background: 'var(--accent-soft)', borderRadius: 8, padding: '8px 12px', marginTop: 6 }}>
-                    <div className="small" style={{ color: 'var(--accent)', fontWeight: 600, marginBottom: 2 }}>Rajeev sir</div>
-                    <p className="small" style={{ whiteSpace: 'pre-wrap' }}>{q.answer}</p>
-                  </div>
-                ) : (
-                  <span className="badge badge-muted" style={{ marginTop: 6 }}>Awaiting answer</span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+          <ThreadList source={`/questions/episode/${id}`} searchable={false} reloadKey={reloadKey}
+            empty="No doubts on this lesson yet." />
+        </section>
       </div>
       <Toast message={toast} onDone={() => setToast('')} />
     </div>
