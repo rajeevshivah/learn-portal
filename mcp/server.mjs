@@ -118,6 +118,7 @@ const lessonRow = (ep) => ({
   phase: ep.phase, published: ep.isPublished, freePreview: ep.isFreePreview, youtubeUrl: ep.youtubeUrl,
   duration: ep.duration, views: ep.viewCount,
   files: (ep.files || []).map(f => ({ fileId: f._id, label: f.label, type: f.fileType, size: f.size })),
+  links: (ep.links || []).map(l => ({ linkId: l._id, label: l.label, kind: l.kind, url: l.url })),
 });
 const courseRow = (c) => ({
   courseId: c._id, title: c.title, slug: c.slug, published: c.isPublished, paid: c.isPaid,
@@ -418,7 +419,7 @@ tool('update_lesson', 'write', 'Change a lesson (title, video link, publish, fre
 tool('delete_lesson', 'destructive', 'Delete a lesson and its uploaded files.',
   { lessonId: zId('lesson') }, ({ lessonId }) => api('DELETE', `episodes/${lessonId}`));
 
-tool('upload_lesson_notes', 'write', 'Upload notes/resources to a lesson from this computer (pdf, doc, docx, pptx, txt, zip; put code/notebooks in a zip).',
+tool('upload_lesson_notes', 'write', 'Upload a file to a lesson from this computer: notes (pdf, docx, pptx, txt, md), notebooks (.ipynb), code (.py, .js, .java, .cpp, .sql…), data (.csv, .json, .xlsx) or a zip. Up to 20 MB. For class recordings, the lessonId is the class\'s lessonId from get_event.',
   { lessonId: zId('lesson'), filePath: zFile, label: z.string().optional().describe('Shown to students, e.g. "Class Notes"') },
   async ({ lessonId, filePath, label }) => {
     const { fd, name, ext } = await fileForm(filePath, {});
@@ -427,6 +428,16 @@ tool('upload_lesson_notes', 'write', 'Upload notes/resources to a lesson from th
     const r = await api('POST', `episodes/${lessonId}/files`, { form: fd });
     return { uploaded: name, files: (r.files || []).map(f => ({ fileId: f._id, label: f.label })) };
   });
+
+tool('add_lesson_link', 'write', 'Attach a link to a lesson: a Google Colab notebook (students get "Open in Colab"), a GitHub repo, a Drive folder or any https link. label is optional; a sensible one is chosen from the link. For class recordings, the lessonId is the class\'s lessonId from get_event.',
+  { lessonId: zId('lesson'), url: z.string().url(), label: z.string().max(120).optional() },
+  async ({ lessonId, url, label }) => {
+    const r = await api('POST', `episodes/${lessonId}/links`, { body: { url, label } });
+    return { added: url, links: (r.links || []).map(l => ({ linkId: l._id, label: l.label, kind: l.kind, url: l.url })) };
+  });
+
+tool('remove_lesson_link', 'destructive', 'Remove one link from a lesson.',
+  { lessonId: zId('lesson'), linkId: zId('link') }, ({ lessonId, linkId }) => api('DELETE', `episodes/${lessonId}/links/${linkId}`));
 
 tool('delete_lesson_file', 'destructive', 'Remove one uploaded file from a lesson.',
   { lessonId: zId('lesson'), fileId: zId('file') }, ({ lessonId, fileId }) => api('DELETE', `episodes/${lessonId}/files/${fileId}`));

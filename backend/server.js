@@ -51,6 +51,7 @@ app.use((err, req, res, next) => {
   if (err.name === 'CastError')       return res.status(400).json({ message: 'Invalid id' });
   if (err.name === 'ValidationError') return res.status(400).json({ message: err.message });
   if (err.code === 11000)             return res.status(409).json({ message: 'Duplicate entry' });
+  if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ message: 'That file is too big. Files can be up to 20 MB; zip big folders or share a Drive link instead.' });
   console.error(err.stack);
   res.status(err.status || 500).json({ message: err.message || 'Server error' });
 });

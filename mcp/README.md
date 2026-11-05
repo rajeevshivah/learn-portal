@@ -106,7 +106,7 @@ not ones on your computer. This server runs on your computer, so use Codex for G
 | Registrations | list_registrations, list_pending_registrations, approve_registration, reject_registration, toggle_attendance |
 | Feedback & testimonials | get_event_feedback, list_feedback, feature_testimonial, hide_feedback, get_public_rating |
 | Courses | list_courses, create_course, update_course, delete_course, upload_course_roadmap_pdf |
-| Lessons | list_lessons, create_lesson, update_lesson, delete_lesson, upload_lesson_notes, delete_lesson_file |
+| Lessons | list_lessons, create_lesson, update_lesson, delete_lesson, upload_lesson_notes, delete_lesson_file, add_lesson_link, remove_lesson_link |
 | Payments | list_pending_course_payments, list_course_payment_history, approve_course_payment, reject_course_payment, list_online_payments |
 | Students | search_students |
 | Refunds | list_refund_requests, approve_refund, mark_refund_sent, decline_refund |

@@ -3,6 +3,7 @@ import axios from 'axios';
 import Toast from '../../components/Toast';
 import { useNavigate } from 'react-router-dom';
 import { openClassBoard } from '../../lib/openBoard';
+import LessonResources from '../../components/LessonResources';
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -99,26 +100,10 @@ function RecordingsPanel({ ev, courses = [], onSaved, setToast }) {
   const [drafts, setDrafts] = useState(() =>
     Object.fromEntries((ev.sessions || []).map(s => [s._id, s.recordingUrl || ''])));
   const [busy, setBusy] = useState('');
-  const [uploading, setUploading] = useState('');
   const linkedId = ev.recordingsCourse?._id || ev.recordingsCourse || '';
   const linked = courses.find(c => String(c._id) === String(linkedId));
 
-  const uploadNotes = async (s, file) => {
-    if (!file) return;
-    setUploading(s._id);
-    try {
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('label', file.name.replace(/\.[^.]+$/, ''));
-      const ext = (file.name.split('.').pop() || 'pdf').toLowerCase();
-      fd.append('fileType', ext);
-      await axios.post(`${API}/episodes/${s.publishedEpisode}/files`, fd,
-        { headers: { 'Content-Type': 'multipart/form-data' } });
-      setToast(`Notes uploaded to "${s.title}"`);
-    } catch (err) {
-      setToast(err.response?.data?.message || 'Could not upload notes');
-    } finally { setUploading(''); }
-  };
+  const [resOpen, setResOpen] = useState('');
 
   const sorted = [...(ev.sessions || [])].sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
   const ended = (s) => new Date(s.startsAt).getTime() + (s.durationMins || 60) * 60000 < Date.now();
@@ -148,7 +133,7 @@ function RecordingsPanel({ ev, courses = [], onSaved, setToast }) {
         <div className="small" style={{ marginBottom: 10, color: 'var(--accent)' }}>
           📚 Recordings become lessons in <strong>{linked.title}</strong>
           {linked.isPaid ? ` (₹${linked.price})` : ''}{!linked.isPublished && ' — course is a draft, publish it in Courses to sell it'}.
-          Use 📎 Notes to attach PDFs or code to a class.
+          Use 📎 Notes &amp; links to attach PDFs, notebooks, code or a Colab link to a class.
         </div>
       ) : (
         <div className="small" style={{ marginBottom: 10, color: 'var(--warning)' }}>
@@ -185,17 +170,19 @@ function RecordingsPanel({ ev, courses = [], onSaved, setToast }) {
               }}>{s.notesUrl ? 'Whiteboard ✓' : 'Whiteboard'}</button>
               {linked && s.publishedEpisode && s.recordingUrl && (
                 <>
-                  <label className="btn btn-ghost btn-sm" style={{ cursor: 'pointer' }}>
-                    {uploading === s._id ? 'Uploading…' : '📎 Notes'}
-                    <input type="file" hidden disabled={uploading === s._id}
-                      accept=".pdf,.doc,.docx,.pptx,.txt,.zip"
-                      title="PDF, Word, PowerPoint, text or ZIP (put code/notebooks in a ZIP)"
-                      onChange={e => { uploadNotes(s, e.target.files[0]); e.target.value = ''; }} />
-                  </label>
+                  <button type="button" className="btn btn-ghost btn-sm" aria-expanded={resOpen === s._id}
+                    onClick={() => setResOpen(resOpen === s._id ? '' : s._id)}>
+                    📎 Notes &amp; links
+                  </button>
                   <a className="btn btn-ghost btn-sm" href={`/episodes/${s.publishedEpisode}`} target="_blank" rel="noreferrer">
                     Open lesson
                   </a>
                 </>
+              )}
+              {resOpen === s._id && s.publishedEpisode && (
+                <div style={{ flexBasis: '100%' }}>
+                  <LessonResources episodeId={s.publishedEpisode} setToast={setToast} />
+                </div>
               )}
             </div>
           );

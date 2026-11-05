@@ -5,6 +5,7 @@ import Toast from '../components/Toast';
 import { useAuth } from '../context/AuthContext';
 import { toEmbed } from '../lib/youtube';
 import { AskBox, ThreadList } from '../components/Discussion';
+import { fileKind, LINK_ACTION, LINK_KIND } from '../lib/fileTypes';
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -127,24 +128,33 @@ export default function EpisodeDetail() {
           </div>
         )}
 
-        {episode.files?.length > 0 && (
-          <div className="card">
-            <h2 style={{ fontSize: 15, marginBottom: 12 }}>Notes and resources</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {episode.files.map(f => (
-                <button key={f._id} onClick={() => downloadFile(f)} disabled={downloading === f._id}
-                   className="card" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
-                     background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer', textAlign: 'left', width: '100%' }}>
-                  <span style={{ fontSize: 20 }}>📄</span>
-                  <span style={{ flex: 1, fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>{f.label}</span>
-                  <span className="small muted">{f.size}</span>
-                  <span className="small" style={{ color: 'var(--accent)' }}>
-                    {downloading === f._id ? 'Downloading…' : 'Download ↓'}
-                  </span>
-                </button>
+        {(episode.files?.length > 0 || episode.links?.length > 0) && (
+          <section className="card res">
+            <h2 className="res-h">Notes, code and links</h2>
+            <ul className="res-list">
+              {(episode.links || []).map(l => (
+                <li key={l._id}>
+                  <a className="res-item" href={l.url} target="_blank" rel="noopener noreferrer">
+                    <span className={`res-kind res-${l.kind}`}>{LINK_KIND[l.kind] || 'Link'}</span>
+                    <span className="res-name">{l.label}</span>
+                    <span className="res-act">{LINK_ACTION[l.kind] || 'Open link'}</span>
+                  </a>
+                </li>
               ))}
-            </div>
-          </div>
+              {(episode.files || []).map(f => (
+                <li key={f._id}>
+                  <button type="button" className="res-item" onClick={() => downloadFile(f)} disabled={downloading === f._id}>
+                    <span className="res-kind">{fileKind(f)}</span>
+                    <span className="res-name">{f.label}<span className="res-size">{f.size}</span></span>
+                    <span className="res-act">{downloading === f._id ? 'Downloading…' : 'Download'}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {(episode.links || []).some(l => l.kind === 'colab') && (
+              <p className="res-tip">Opening a Colab notebook? Use File → Save a copy in Drive, then run and edit your own copy.</p>
+            )}
+          </section>
         )}
         <section className="card dq-lesson-card" style={{ marginTop: 16 }}>
           <div className="db-head">

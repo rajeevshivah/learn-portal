@@ -38,6 +38,7 @@ router.get('/', protect, asyncHandler(async (req, res) => {
     if (!unlocked) {
       obj.youtubeUrl = '';
       obj.files = [];
+      obj.links = [];
     }
     obj.locked = !unlocked;
     return obj;
@@ -53,7 +54,7 @@ router.get('/outline/:courseId', asyncHandler(async (req, res) => {
     .select('episodeNumber title phase duration isFreePreview tags')
     .sort({ episodeNumber: 1 });
   res.json(episodes.map(ep => ({
-    ...ep.toObject(), youtubeUrl: '', files: [],
+    ...ep.toObject(), youtubeUrl: '', files: [], links: [],
     locked: courseDoc.isPaid && !ep.isFreePreview,
   })));
 }));
@@ -182,17 +183,55 @@ router.post('/:episodeId/files', protect, adminOnly, upload.single('file'), asyn
   const episode = await Episode.findById(req.params.episodeId);
   if (!episode) return res.status(404).json({ message: 'Episode not found' });
   if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
-  const { label, fileType } = req.body;
+  const { label } = req.body;
+  const ext = (req.file.originalname || '').split('.').pop().toLowerCase();
   episode.files.push({
-    label:        label || req.file.originalname,
+    label:        (label || req.file.originalname).slice(0, 120),
     originalName: req.file.originalname || '',
     url:          req.file.path,
     publicId: req.file.filename,
-    fileType: fileType || 'pdf',
-    size:     req.file.size ? `${(req.file.size / 1024 / 1024).toFixed(1)} MB` : '',
+    fileType: ext || req.body.fileType || 'pdf',
+    size:     !req.file.size ? '' : req.file.size < 1024 * 1024
+      ? `${Math.max(1, Math.round(req.file.size / 1024))} KB`
+      : `${(req.file.size / 1024 / 1024).toFixed(1)} MB`,
   });
   await episode.save();
   res.status(201).json({ message: 'File uploaded', files: episode.files });
+}));
+
+// ── ADMIN: links (Colab notebook, GitHub repo, Drive folder…) ──
+const linkKind = (url) => {
+  const host = new URL(url).hostname.replace(/^www\./, '');
+  if (host === 'colab.research.google.com') return 'colab';
+  if (host === 'github.com' || host === 'gist.github.com') return 'github';
+  if (host === 'drive.google.com' || host === 'docs.google.com') return 'drive';
+  if (host === 'kaggle.com') return 'kaggle';
+  return 'link';
+};
+const LINK_LABEL = { colab: 'Class notebook', github: 'Class code', drive: 'Shared folder', kaggle: 'Kaggle notebook', link: 'Link' };
+
+router.post('/:episodeId/links', protect, adminOnly, asyncHandler(async (req, res) => {
+  const episode = await Episode.findById(req.params.episodeId);
+  if (!episode) return res.status(404).json({ message: 'Episode not found' });
+  const url = String(req.body.url || '').trim();
+  let parsed;
+  try { parsed = new URL(url); } catch { parsed = null; }
+  if (!parsed || parsed.protocol !== 'https:') return res.status(400).json({ message: 'Paste the full link, starting with https://' });
+  if (episode.links.length >= 20) return res.status(400).json({ message: 'A lesson can have up to 20 links' });
+  const kind = linkKind(url);
+  const label = String(req.body.label || '').trim().slice(0, 120) || LINK_LABEL[kind];
+  episode.links.push({ label, url, kind });
+  await episode.save();
+  res.status(201).json({ message: 'Link added', links: episode.links });
+}));
+
+router.delete('/:episodeId/links/:linkId', protect, adminOnly, asyncHandler(async (req, res) => {
+  const episode = await Episode.findById(req.params.episodeId);
+  if (!episode) return res.status(404).json({ message: 'Episode not found' });
+  if (!episode.links.id(req.params.linkId)) return res.status(404).json({ message: 'Link not found' });
+  episode.links.pull(req.params.linkId);
+  await episode.save();
+  res.json({ message: 'Link removed', links: episode.links });
 }));
 
 // ── ADMIN: delete file ───────────────────────────────────

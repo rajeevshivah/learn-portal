@@ -665,3 +665,46 @@ a.today-q:hover { color: var(--accent); }
 .rfa-controls { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 10px; }
 .rfa-controls .input { max-width: 280px; padding: 6px 10px; font-size: 13.5px; }
 .rfa-amt { width: 90px !important; margin-left: 6px; display: inline-block; }
+
+/* ═══ Lesson resources: notes, code, notebooks, links ═══ */
+.res { margin-top: 16px; }
+.res-h { font-size: 15px; margin-bottom: 12px; }
+.res-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.res-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 11px 14px; text-align: left; cursor: pointer;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 12px; color: var(--text); font: inherit; }
+.res-item:hover { border-color: var(--border-hi); }
+.res-item:disabled { cursor: progress; }
+.res-kind { flex-shrink: 0; min-width: 64px; text-align: center; font-size: 11.5px; font-weight: 600; padding: 3px 8px; border-radius: 7px;
+  background: var(--surface-2); color: var(--text-2); }
+.res-colab { background: rgba(245, 181, 68, .15); color: var(--diya); }
+.res-github { background: rgba(237, 241, 247, .1); color: var(--text); }
+.res-drive, .res-kaggle, .res-link { background: var(--accent-soft); color: var(--accent); }
+.res-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+.res-size { margin-left: 8px; font-size: 12px; font-weight: 400; color: var(--text-3); }
+.res-act { flex-shrink: 0; font-size: 13px; color: var(--accent); }
+.res-tip { margin-top: 10px; font-size: 12.5px; color: var(--text-3); line-height: 1.5; }
+@media (max-width: 520px) {
+  .res-item { gap: 10px; padding: 10px 12px; }
+  .res-kind { min-width: 0; padding: 3px 7px; }
+  .res-name { font-size: 13.5px; }
+  .res-size { display: block; margin: 2px 0 0; }
+  .res-act { font-size: 12.5px; }
+}
+
+/* Admin: lesson resources panel */
+.lr { margin-top: 10px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.lr-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.lr-list li { display: flex; align-items: center; gap: 10px; font-size: 13.5px; min-width: 0; }
+.lr-kind { flex-shrink: 0; min-width: 62px; text-align: center; font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 6px; background: var(--surface-2); color: var(--text-2); }
+.lr-kind-link { background: rgba(245, 181, 68, .15); color: var(--diya); }
+.lr-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+a.lr-name:hover { color: var(--accent); }
+.lr-file { color: var(--text-3); font-size: 12px; }
+.lr-size { font-size: 12px; color: var(--text-3); }
+.lr-x { background: none; border: 0; padding: 2px 0; font: inherit; font-size: 12.5px; color: var(--danger); cursor: pointer; }
+.lr-empty { margin-bottom: 10px; }
+.lr-add { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+.lr-upload { cursor: pointer; }
+.lr-link-form .input { flex: 2 1 260px; min-width: 0; padding: 7px 10px; font-size: 13.5px; }
+.lr-link-form .lr-label { flex: 1 1 140px; }
+.lr-tip { margin-top: 10px; line-height: 1.5; }

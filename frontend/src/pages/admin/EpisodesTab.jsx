@@ -1,6 +1,7 @@
-import { useEffect, useState, useCallback } from 'react';
+import { Fragment, useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import Toast from '../../components/Toast';
+import LessonResources from '../../components/LessonResources';
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -77,16 +78,7 @@ export default function EpisodesTab() {
     } catch (err) { setToast(err.response?.data?.message || 'Delete failed'); }
   };
 
-  const uploadFile = async (ep, file) => {
-    if (!file) return;
-    const fd = new FormData();
-    fd.append('file', file);
-    fd.append('label', file.name);
-    try {
-      await axios.post(`${API}/episodes/${ep._id}/files`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-      setToast('File uploaded'); load();
-    } catch (err) { setToast(err.response?.data?.message || 'Upload failed'); }
-  };
+  const [resOpen, setResOpen] = useState('');
 
   return (
     <div>
@@ -166,10 +158,11 @@ export default function EpisodesTab() {
 
       <div className="table-wrap">
         <table className="table">
-          <thead><tr><th>#</th><th>Episode</th><th>Course</th><th>Flags</th><th>Files</th><th>Actions</th></tr></thead>
+          <thead><tr><th>#</th><th>Episode</th><th>Course</th><th>Flags</th><th>Notes &amp; links</th><th>Actions</th></tr></thead>
           <tbody>
             {episodes.map(ep => (
-              <tr key={ep._id}>
+              <Fragment key={ep._id}>
+              <tr>
                 <td style={{ fontWeight: 700 }}>{ep.episodeNumber}</td>
                 <td>
                   <div style={{ fontWeight: 600 }}>{ep.title}</div>
@@ -186,11 +179,10 @@ export default function EpisodesTab() {
                   </div>
                 </td>
                 <td>
-                  <span className="small muted">{ep.files?.length || 0} file(s) · </span>
-                  <label className="small" style={{ color: 'var(--accent)', cursor: 'pointer' }}>
-                    Upload
-                    <input type="file" hidden accept=".pdf,.doc,.docx,.pptx,.txt,.zip" onChange={e => uploadFile(ep, e.target.files[0])} />
-                  </label>
+                  <button type="button" className="small" style={{ color: 'var(--accent)', background: 'none', border: 0, padding: 0, cursor: 'pointer' }}
+                    onClick={() => setResOpen(resOpen === ep._id ? '' : ep._id)} aria-expanded={resOpen === ep._id}>
+                    {(ep.files?.length || 0) + (ep.links?.length || 0)} attached · {resOpen === ep._id ? 'Close' : 'Manage'}
+                  </button>
                 </td>
                 <td>
                   <div style={{ display: 'flex', gap: 6 }}>
@@ -199,6 +191,12 @@ export default function EpisodesTab() {
                   </div>
                 </td>
               </tr>
+              {resOpen === ep._id && (
+                <tr><td colSpan={6} style={{ background: 'var(--bg)' }}>
+                  <LessonResources episodeId={ep._id} setToast={setToast} onChange={load} />
+                </td></tr>
+              )}
+              </Fragment>
             ))}
           </tbody>
         </table>
