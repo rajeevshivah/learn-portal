@@ -140,6 +140,7 @@ export default function Home() {
       <footer className="container home-foot">
         <span>codeWithShivah by Rajeev Shivah</span>
         <Link to="/courses">Courses</Link>
+        <Link to="/refund-policy">Cancellation &amp; refunds</Link>
         <Link to="/login">Sign in</Link>
       </footer>
     </div>

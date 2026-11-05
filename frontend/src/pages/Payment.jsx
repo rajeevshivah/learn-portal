@@ -4,6 +4,7 @@ import axios from 'axios';
 import { QRCodeSVG } from 'qrcode.react';
 import Toast from '../components/Toast';
 import { getRzpConfig, payWithRazorpay, PAYMENT_HELP_TEXT } from '../lib/razorpay';
+import { RefundNote } from './RefundPolicy';
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -149,6 +150,7 @@ export default function Payment() {
             <button className="btn btn-primary btn-block" onClick={payOnline} disabled={paying}>
               {paying ? 'Opening secure payment…' : `Pay ₹${info.course.price} & unlock now`}
             </button>
+            <RefundNote kind="course" />
             <p className="small muted" style={{ marginTop: 12 }}>
               🔒 Secured by Razorpay · Access unlocks instantly
             </p>
@@ -209,6 +211,7 @@ export default function Payment() {
           <button className="btn btn-primary btn-block" onClick={submit} disabled={submitting}>
             {submitting ? 'Submitting…' : 'Submit for verification'}
           </button>
+          <RefundNote kind="course" />
           <p className="small muted" style={{ marginTop: 12, textAlign: 'center' }}>{info.note}</p>
         </div>
         </>)}

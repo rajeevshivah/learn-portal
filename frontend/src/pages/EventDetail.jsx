@@ -4,6 +4,7 @@ import axios from 'axios';
 import { QRCodeSVG } from 'qrcode.react';
 import Toast from '../components/Toast';
 import { getRzpConfig, payWithRazorpay, PAYMENT_HELP_TEXT } from '../lib/razorpay';
+import { RefundNote } from './RefundPolicy';
 import { EventFeedback, Testimonials } from '../components/Feedback';
 import ClassTicket from '../components/ClassTicket';
 import { RecLink } from '../components/RecordingPlayer';
@@ -555,6 +556,7 @@ export default function EventDetail() {
                         disabled={submitting} onClick={payOnline}>
                         {submitting ? 'Opening secure payment…' : `Pay ₹${event.price} & register →`}
                       </button>
+                      <RefundNote classes={event.sessions?.length || 1} />
                       <p className="small muted" style={{ textAlign: 'center' }}>
                         🔒 Razorpay · UPI, cards, netbanking · International cards accepted
                       </p>
@@ -578,6 +580,7 @@ export default function EventDetail() {
                           ? 'Submitting…'
                           : event.isPaid ? `Submit payment & register` : 'Register free →'}
                       </button>
+                      {event.isPaid && <RefundNote classes={event.sessions?.length || 1} />}
                       {event.isPaid && rzpOn && (
                         <button className="btn btn-ghost btn-sm" style={{ alignSelf: 'center' }}
                           onClick={() => setShowManual(false)}>
