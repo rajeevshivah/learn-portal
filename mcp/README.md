@@ -109,6 +109,7 @@ not ones on your computer. This server runs on your computer, so use Codex for G
 | Lessons | list_lessons, create_lesson, update_lesson, delete_lesson, upload_lesson_notes, delete_lesson_file |
 | Payments | list_pending_course_payments, list_course_payment_history, approve_course_payment, reject_course_payment, list_online_payments |
 | Students | search_students |
+| Refunds | list_refund_requests, approve_refund, mark_refund_sent, decline_refund |
 | Whiteboards | list_whiteboards, open_class_whiteboard, create_whiteboard, rename_whiteboard, unpublish_whiteboard_notes, delete_whiteboard |
 | Doubts | list_unanswered_doubts, list_all_doubts, get_doubt_thread, answer_doubt, comment_on_reply, accept_reply, hide_reply, moderate_doubt, delete_doubt |
 | Polls & ideas | list_polls, create_poll, close_poll, reopen_poll, delete_poll, list_topic_suggestions, toggle_suggestion_reviewed, delete_suggestion |

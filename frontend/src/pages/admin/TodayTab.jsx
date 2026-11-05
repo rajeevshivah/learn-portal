@@ -26,6 +26,7 @@ export default function TodayTab({ goTo, onChange }) {
   const [pays, setPays] = useState([]);
   const [doubts, setDoubts] = useState([]);
   const [events, setEvents] = useState([]);
+  const [refunds, setRefunds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(new Set());
   const [busy, setBusy] = useState('');
@@ -33,12 +34,14 @@ export default function TodayTab({ goTo, onChange }) {
   const [recDraft, setRecDraft] = useState({});
 
   const load = useCallback(async () => {
-    const [r, p, d, e] = await Promise.allSettled([
+    const [r, p, d, e, rf] = await Promise.allSettled([
       axios.get(`${API}/events/admin/pending`),
       axios.get(`${API}/payments/pending`),
       axios.get(`${API}/questions/unanswered`),
       axios.get(`${API}/events/admin/all`),
+      axios.get(`${API}/refunds/admin`, { params: { status: 'open' } }),
     ]);
+    setRefunds(rf.status === 'fulfilled' ? rf.value.data : []);
     setRegs(r.status === 'fulfilled' ? r.value.data : []);
     setPays(p.status === 'fulfilled' ? p.value.data : []);
     setDoubts(d.status === 'fulfilled' ? d.value.data : []);
@@ -134,7 +137,7 @@ export default function TodayTab({ goTo, onChange }) {
   const toggle = (id) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const cleanSel = queue.filter(x => !x.dupUtr).map(x => x.id);
   const allSel = cleanSel.length > 0 && cleanSel.every(id => selected.has(id));
-  const needs = queue.length + missingRecs.length + doubts.length + classes.filter(c => !c.s.joinUrl).length;
+  const needs = queue.length + missingRecs.length + doubts.length + refunds.length + classes.filter(c => !c.s.joinUrl).length;
 
   return (
     <div className="today">
@@ -224,6 +227,28 @@ export default function TodayTab({ goTo, onChange }) {
           </div>
         )}
       </section>
+
+      {/* ── Refund requests ── */}
+      {refunds.length > 0 && (
+        <section className="today-block">
+          <div className="today-head">
+            <h2 className="today-h">Refund requests <span className="today-count">{refunds.length}</span></h2>
+            <button className="btn btn-ghost btn-sm" onClick={() => goTo('refunds')}>Handle refunds</button>
+          </div>
+          <div className="today-list">
+            {refunds.slice(0, 3).map(r => (
+              <div key={r._id} className={`today-row ${r.status === 'pending' && !r.eligible ? 'is-dup' : ''}`}>
+                <div className="today-main">
+                  <div className="today-title">{r.user?.name} <span className="today-amt">₹{r.amountPaid}</span></div>
+                  <div className="today-meta">
+                    {r.title} · {r.status === 'approved' ? 'approved, UPI refund still to send' : r.type === 'guarantee' ? 'not for me' : 'payment problem'} · {ago(r.createdAt)}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ── Recordings missing ── */}
       {missingRecs.length > 0 && (

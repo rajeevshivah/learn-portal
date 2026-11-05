@@ -15,7 +15,7 @@ const enrollmentSchema = new mongoose.Schema({
   // Paid course => 'pending' after UTR submission, then admin approves/rejects.
   status: {
     type: String,
-    enum: ['pending', 'active', 'rejected'],
+    enum: ['pending', 'active', 'rejected', 'refunded'],   // refunded: access removed after a refund
     default: 'active',
   },
   // Payment details (paid courses only)

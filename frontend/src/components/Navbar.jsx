@@ -80,7 +80,10 @@ function MoreSheet({ open, onClose }) {
               </span>
             </button>
           )}
-          <button className="sheet-item" onClick={() => go('/refund-policy')}>Cancellation &amp; refunds</button>
+          <button className="sheet-item" onClick={() => go('/refunds')}>
+            Refunds
+            <span className="sheet-hint">Ask for a refund, or check one you’ve asked for</span>
+          </button>
           <button className="sheet-item sheet-danger" onClick={doLogout}>Log out</button>
         </div>
       </div>

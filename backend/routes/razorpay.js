@@ -356,3 +356,5 @@ router.get('/admin/payments', protect, adminOnly, asyncHandler(async (req, res) 
 }));
 
 module.exports = router;
+module.exports.rzp = rzp;
+module.exports.isEnabled = isEnabled;

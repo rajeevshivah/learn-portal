@@ -17,7 +17,7 @@ const registrationSchema = new mongoose.Schema({
 
   status: {
     type: String,
-    enum: ['pending', 'active', 'rejected'],
+    enum: ['pending', 'active', 'rejected', 'refunded'],   // refunded: access removed after a refund
     default: 'active',
   },
 

@@ -10,12 +10,14 @@ import DoubtsTab   from './admin/DoubtsTab';
 import EventsTab   from './admin/EventsTab';
 import PollsTab    from './admin/PollsTab';
 import TodayTab    from './admin/TodayTab';
+import RefundsTab  from './admin/RefundsTab';
 
 const API = import.meta.env.VITE_API_URL;
 
 const TABS = [
   { id: 'today',    label: 'Today' },
   { id: 'payments', label: 'Payments' },
+  { id: 'refunds',  label: 'Refunds' },
   { id: 'courses',  label: 'Courses' },
   { id: 'episodes', label: 'Episodes' },
   { id: 'events',   label: 'Live & Workshops' },
@@ -34,6 +36,12 @@ export default function Admin() {
   const [pendingCount, setPendingCount] = useState(0);
   const [doubtCount, setDoubtCount] = useState(0);
   const [eventPendingCount, setEventPendingCount] = useState(0);
+  const [refundCount, setRefundCount] = useState(0);
+  const refreshRefunds = () => {
+    axios.get(`${API}/refunds/admin`, { params: { status: 'open' } })
+      .then(({ data }) => setRefundCount(data.length))
+      .catch(() => {});
+  };
 
   const refreshPending = () => {
     axios.get(`${API}/payments/pending`)
@@ -52,7 +60,7 @@ export default function Admin() {
       .catch(() => {});
   };
 
-  useEffect(() => { refreshPending(); refreshDoubts(); refreshEventPending(); }, []);
+  useEffect(() => { refreshPending(); refreshDoubts(); refreshEventPending(); refreshRefunds(); }, []);
 
   return (
     <div className="page">
@@ -69,7 +77,8 @@ export default function Admin() {
           {TABS.map(t => (
             <button key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
               {t.label}
-              {t.id === 'today' && pendingCount + eventPendingCount + doubtCount > 0 && <span className="tab-count">{pendingCount + eventPendingCount + doubtCount}</span>}
+              {t.id === 'today' && pendingCount + eventPendingCount + doubtCount + refundCount > 0 && <span className="tab-count">{pendingCount + eventPendingCount + doubtCount + refundCount}</span>}
+              {t.id === 'refunds' && refundCount > 0 && <span className="tab-count">{refundCount}</span>}
               {t.id === 'payments' && pendingCount > 0 && <span className="tab-count">{pendingCount}</span>}
               {t.id === 'doubts' && doubtCount > 0 && <span className="tab-count">{doubtCount}</span>}
               {t.id === 'events' && eventPendingCount > 0 && <span className="tab-count">{eventPendingCount}</span>}
@@ -77,7 +86,8 @@ export default function Admin() {
           ))}
         </div>
 
-        {tab === 'today'    && <TodayTab goTo={setTab} onChange={() => { refreshPending(); refreshEventPending(); refreshDoubts(); }} />}
+        {tab === 'today'    && <TodayTab goTo={setTab} onChange={() => { refreshPending(); refreshEventPending(); refreshDoubts(); refreshRefunds(); }} />}
+        {tab === 'refunds'  && <RefundsTab onChange={refreshRefunds} />}
         {tab === 'payments' && <PaymentsTab onChange={refreshPending} />}
         {tab === 'courses'  && <CoursesTab />}
         {tab === 'episodes' && <EpisodesTab />}

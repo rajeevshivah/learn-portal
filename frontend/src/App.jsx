@@ -23,6 +23,7 @@ import Thread         from './pages/Thread';
 import Boards         from './pages/Boards';
 import Whiteboard     from './pages/Whiteboard';
 import RefundPolicy   from './pages/RefundPolicy';
+import Refunds        from './pages/Refunds';
 
 function Protected({ children, adminOnly = false, bare = false }) {
   const { user, loading } = useAuth();
@@ -68,6 +69,7 @@ function AppRoutes() {
       {/* PUBLIC — shareable live-webinar funnel link (Instagram bio, WhatsApp, etc.) */}
       <Route path="/live/:slug" element={<LivePublic />} />
       <Route path="/refund-policy" element={<Open><RefundPolicy /></Open>} />
+      <Route path="/refunds" element={<Protected><Refunds /></Protected>} />
       <Route path="/cancellation-policy" element={<Navigate to="/refund-policy" replace />} />
 
       <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
