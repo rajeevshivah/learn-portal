@@ -5,6 +5,7 @@ import PaymentsTab from './admin/PaymentsTab';
 import CoursesTab  from './admin/CoursesTab';
 import EpisodesTab from './admin/EpisodesTab';
 import StudentsTab from './admin/StudentsTab';
+import TechTab from './admin/TechTab';
 import SettingsTab from './admin/SettingsTab';
 import DoubtsTab   from './admin/DoubtsTab';
 import EventsTab   from './admin/EventsTab';
@@ -24,6 +25,7 @@ const TABS = [
   { id: 'polls',    label: 'Polls & Ideas' },
   { id: 'doubts',   label: 'Doubts' },
   { id: 'students', label: 'Students' },
+  { id: 'tech',     label: 'Tech feed' },
   { id: 'settings', label: 'Settings' },
 ];
 
@@ -95,6 +97,7 @@ export default function Admin() {
         {tab === 'polls'    && <PollsTab />}
         {tab === 'doubts'   && <DoubtsTab onChange={refreshDoubts} />}
         {tab === 'students' && <StudentsTab />}
+        {tab === 'tech'     && <TechTab />}
         {tab === 'settings' && <SettingsTab />}
       </div>
     </div>

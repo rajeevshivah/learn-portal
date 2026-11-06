@@ -6,7 +6,8 @@ const mongoose = require('mongoose');
 // this is the receipt + audit trail.
 const paymentSchema = new mongoose.Schema({
   user:  { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  kind:  { type: String, enum: ['course', 'event'], required: true },
+  kind:  { type: String, enum: ['course', 'event', 'techpass'], required: true },
+  techDays: { type: Number, default: 0 },             // Tech Pass length bought
   course:{ type: mongoose.Schema.Types.ObjectId, ref: 'Course', default: null },
   event: { type: mongoose.Schema.Types.ObjectId, ref: 'LiveEvent', default: null },
 

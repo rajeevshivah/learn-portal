@@ -15,6 +15,23 @@ const settingsSchema = new mongoose.Schema({
   singleDeviceLogin: { type: Boolean, default: true },
   // New programs start with "Meet link per class" switched on (when Google is connected).
   meetLinkPerClassForNew: { type: Boolean, default: true },
+
+  // Tech Pass: personal tips in the tech feed. Free for paid students (freeForPaid),
+  // otherwise bought for `price` ₹ for `days` days. enabled: false = free for everyone.
+  techPass: {
+    enabled:     { type: Boolean, default: true },
+    price:       { type: Number, default: 99 },
+    days:        { type: Number, default: 90 },
+    freeForPaid: { type: Boolean, default: true },
+  },
+
+  // Tech feed bookkeeping (utils/techFeed.js)
+  techLastRefreshAt: { type: Date, default: null },
+  techAi: {
+    day:       { type: String, default: '' },   // YYYY-MM-DD
+    articles:  { type: Number, default: 0 },    // articles tagged by AI that day
+    lastError: { type: String, default: '' },
+  },
 }, { timestamps: true });
 
 settingsSchema.statics.get = async function () {

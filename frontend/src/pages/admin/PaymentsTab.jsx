@@ -78,7 +78,7 @@ export default function PaymentsTab({ onChange }) {
                     </td>
                     <td>
                       <span className="badge badge-muted" style={{ marginRight: 6 }}>{r.kind === 'event' ? 'Webinar' : 'Course'}</span>
-                      {r.kind === 'event' ? r.event?.title : r.course?.title}
+                      {r.kind === 'techpass' ? 'Tech Pass' : r.kind === 'event' ? r.event?.title : r.course?.title}
                     </td>
                     <td style={{ fontWeight: 600 }}>₹{r.amount}</td>
                     <td><code style={{ fontSize: 12.5, userSelect: 'all' }}>{r.paymentId || '—'}</code></td>

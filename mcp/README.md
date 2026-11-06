@@ -110,6 +110,7 @@ not ones on your computer. This server runs on your computer, so use Codex for G
 | Lessons | list_lessons, create_lesson, update_lesson, delete_lesson, upload_lesson_notes, delete_lesson_file, add_lesson_link, remove_lesson_link |
 | Payments | list_pending_course_payments, list_course_payment_history, approve_course_payment, reject_course_payment, list_online_payments |
 | Students | search_students, sign_out_student |
+| Tech feed | get_tech_feed_status, refresh_tech_feed, list_tech_items, add_tech_event, update_tech_item, delete_tech_item, set_tech_source, add_tech_source, remove_tech_source, set_tech_pass, gift_tech_pass, list_tech_passes |
 | Refunds | list_refund_requests, approve_refund, mark_refund_sent, decline_refund |
 | Whiteboards | list_whiteboards, open_class_whiteboard, create_whiteboard, rename_whiteboard, unpublish_whiteboard_notes, delete_whiteboard |
 | Doubts | list_unanswered_doubts, list_all_doubts, get_doubt_thread, answer_doubt, comment_on_reply, accept_reply, hide_reply, moderate_doubt, delete_doubt |

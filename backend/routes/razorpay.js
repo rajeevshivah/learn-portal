@@ -79,7 +79,10 @@ async function fulfill(payment, rzpPayment = {}) {
   const paymentId = rzpPayment.id || payment.paymentId;
   const ref = `RZP ${paymentId}`;
 
-  if (payment.kind === 'course') {
+  if (payment.kind === 'techpass') {
+    const { grantPass } = require('../utils/techAccess');
+    await grantPass(payment.user, { days: payment.techDays || 90, amount: payment.amount, paymentRef: ref });
+  } else if (payment.kind === 'course') {
     const course = await Course.findById(payment.course).select('accessDays');
     const existing = await Enrollment.findOne({ user: payment.user, course: payment.course });
 
@@ -142,6 +145,12 @@ async function ensureCaptured(rzpPayment) {
 
 // What the student sees after a successful payment
 async function successReply(payment) {
+  if (payment.kind === 'techpass') {
+    const { techAccess } = require('../utils/techAccess');
+    const User = require('../models/User');
+    const a = await techAccess(await User.findById(payment.user));
+    return { status: 'active', kind: 'techpass', message: `Tech Pass active. ${a.label}.`, access: a };
+  }
   if (payment.kind === 'course') {
     const course = await Course.findById(payment.course).select('slug title');
     return {
@@ -226,6 +235,15 @@ router.post('/order', protect, asyncHandler(async (req, res) => {
     amount = event.price;
     title  = event.title;
 
+  } else if (kind === 'techpass') {
+    const { techAccess } = require('../utils/techAccess');
+    const a = await techAccess(req.user);
+    if (!a.pass.enabled) return res.status(400).json({ message: 'Tech tips are free right now. No pass needed.' });
+    if (['included', 'admin'].includes(a.reason)) return res.status(400).json({ message: `You already have tech tips: ${a.label}` });
+    if (!(a.pass.price > 0)) return res.status(400).json({ message: 'Tech Pass price isn’t set' });
+    amount = a.pass.price;
+    title  = `Tech Pass, ${a.pass.days} days`;
+    form.techDays = a.pass.days;
   } else {
     return res.status(400).json({ message: 'Invalid payment type' });
   }
@@ -233,8 +251,8 @@ router.post('/order', protect, asyncHandler(async (req, res) => {
   const order = await rzp('POST', '/orders', {
     amount: Math.round(amount * 100),        // paise
     currency: 'INR',
-    receipt: `${kind}_${String(id).slice(-8)}_${Date.now().toString(36)}`.slice(0, 40),
-    notes: { kind, refId: String(id), userId: String(req.user._id), email: req.user.email || '' },
+    receipt: `${kind}_${String(id || req.user._id).slice(-8)}_${Date.now().toString(36)}`.slice(0, 40),
+    notes: { kind, refId: String(id || ''), userId: String(req.user._id), email: req.user.email || '' },
   });
 
   await Payment.create({
@@ -245,7 +263,8 @@ router.post('/order', protect, asyncHandler(async (req, res) => {
     amount,
     currency: 'INR',
     orderId: order.id,
-    form,
+    techDays: form.techDays || 0,
+    form: kind === 'event' ? form : {},
   });
 
   res.status(201).json({

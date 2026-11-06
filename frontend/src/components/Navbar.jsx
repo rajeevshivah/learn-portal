@@ -80,6 +80,10 @@ function MoreSheet({ open, onClose }) {
               </span>
             </button>
           )}
+          <button className="sheet-item" onClick={() => go('/tech')}>
+            Tech news &amp; hackathons
+            <span className="sheet-hint">News for your career goal, and events to apply to</span>
+          </button>
           <button className="sheet-item" onClick={() => go('/refunds')}>
             Refunds
             <span className="sheet-hint">Ask for a refund, or check one you’ve asked for</span>
@@ -118,6 +122,7 @@ export default function Navbar() {
             {top('/dashboard', 'Home')}
             {top('/courses', 'Courses')}
             {top('/events', 'Live')}
+            {top('/tech', 'Tech news')}
             {isAdmin && top('/admin', 'Admin')}
             {isAdmin && top('/admin/boards', 'Boards')}
             {isAdmin && top('/admin/analytics', 'Analytics')}

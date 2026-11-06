@@ -39,6 +39,7 @@ app.use('/api/apikeys',     require('./routes/apikeys'));
 app.use('/api/feedback',    require('./routes/feedback'));
 app.use('/api/boards',      require('./routes/boards'));
 app.use('/api/refunds',     require('./routes/refunds'));
+app.use('/api/tech',        require('./routes/tech'));
 
 // Health check
 app.get('/', (req, res) => res.json({ message: 'Learn Portal API running' }));

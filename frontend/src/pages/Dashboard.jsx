@@ -7,6 +7,7 @@ import PollModal from '../components/PollModal';
 import SuggestBox from '../components/SuggestBox';
 import { FeedbackPrompt } from '../components/Feedback';
 import Cover from '../components/Cover';
+import TechForYou from '../components/TechForYou';
 import ClassTicket, { endOf, byStart, fmtTime, fmtEvent, sameDay } from '../components/ClassTicket';
 
 const API = import.meta.env.VITE_API_URL;
@@ -227,6 +228,8 @@ export default function Dashboard() {
                 </div>
               </section>
             )}
+
+            <TechForYou />
 
             <section className="db-block">
               <div className="db-head">

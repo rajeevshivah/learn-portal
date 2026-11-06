@@ -486,7 +486,7 @@ tool('reject_course_payment', 'write', 'Reject a pending UPI course payment with
 tool('list_online_payments', 'read', 'Razorpay payments for courses and webinars (latest 300).',
   { status: z.enum(['created', 'paid', 'failed']).optional() },
   async ({ status }) => (await api('GET', 'rzp/admin/payments', { query: { status } })).map(p => ({
-    status: p.status, name: p.user?.name, email: p.user?.email, for: p.course?.title || p.event?.title, kind: p.kind,
+    status: p.status, name: p.user?.name, email: p.user?.email, for: p.kind === 'techpass' ? 'Tech Pass' : p.course?.title || p.event?.title, kind: p.kind,
     amount: p.amount, method: p.method, international: p.international, paymentId: p.paymentId, orderId: p.orderId,
     paidIST: IST(p.paidAt), createdIST: IST(p.createdAt),
   })));
@@ -503,6 +503,63 @@ tool('search_students', 'read', 'Find students by name or email; shows their cou
 
 tool('sign_out_student', 'write', 'Sign a student out on every device (e.g. their account is being shared). They can sign in again with Google.',
   { userId: zId('user') }, ({ userId }) => api('PUT', `auth/users/${userId}/sign-out`));
+
+// ─────────────────────────────────────────────────────────
+// TECH FEED (news + hackathons on the student dashboard)
+// ─────────────────────────────────────────────────────────
+const TRACK_IDS = ['data-science', 'ai-ml', 'web', 'mobile', 'dsa-placements', 'cloud-devops', 'cybersecurity', 'data-engineering', 'java', 'python', 'blockchain', 'ui-ux', 'game-dev', 'embedded-iot', 'testing', 'startups', 'general'];
+const zTracks = z.array(z.enum(TRACK_IDS)).max(4);
+
+tool('get_tech_feed_status', 'read', 'Tech feed health and Tech Pass numbers (settings, active passes, sold, revenue): last refresh, AI summaries used today, items waiting for AI, counts, which career goals students picked, and every source with its last result.',
+  {}, () => api('GET', 'tech/admin/status'));
+
+tool('refresh_tech_feed', 'write', 'Fetch the newest tech news and hackathons from all enabled sources now and summarise new ones with AI (normally happens by itself every few hours when students open the feed).',
+  {}, () => api('POST', 'tech/admin/refresh'));
+
+tool('list_tech_items', 'read', 'Items in the tech feed (newest first; events by deadline). Use to find an item id to hide, pin or edit.',
+  { kind: z.enum(['news', 'event']).optional(), search: z.string().max(100).optional(), hiddenOnly: z.boolean().optional() },
+  async ({ kind, search, hiddenOnly }) => (await api('GET', 'tech/admin/items', { query: { kind, q: search, hidden: hiddenOnly ? 'true' : undefined } }))
+    .map(i => ({ itemId: i._id, kind: i.kind, title: i.title, url: i.url, source: i.source, tracks: i.tracks, importance: i.importance,
+      pinned: i.pinned, hidden: i.hidden, aiDone: i.aiDone, published: i.publishedAt, deadline: i.deadline, location: i.location })));
+
+tool('add_tech_event', 'write', 'Add a hackathon or tech event (e.g. from Unstop, Devfolio, a college fest) or a news link to the students\' tech feed. Events need a deadline or start date (ISO with +05:30). tracks: career goals it suits; leave out to auto-detect; "general" = everyone.',
+  { kind: z.enum(['event', 'news']).default('event'), title: z.string().min(3).max(300), url: z.string().url(), summary: z.string().max(400).optional(),
+    tracks: zTracks.optional(), deadline: z.string().optional(), startsAt: z.string().optional(), endsAt: z.string().optional(),
+    mode: z.enum(['online', 'in-person', 'hybrid']).optional(), location: z.string().max(120).optional(), prize: z.string().max(120).optional(),
+    organizer: z.string().max(120).optional(), pinned: z.boolean().optional() },
+  (body) => api('POST', 'tech/admin/items', { body }));
+
+tool('update_tech_item', 'write', 'Hide/unhide, pin/unpin or edit an item in the tech feed (pinned items show first for every student).',
+  { itemId: zId('item'), hidden: z.boolean().optional(), pinned: z.boolean().optional(), title: z.string().max(300).optional(),
+    summary: z.string().max(400).optional(), tracks: zTracks.optional(), importance: z.number().int().min(1).max(5).optional(),
+    deadline: z.string().optional(), startsAt: z.string().optional(), endsAt: z.string().optional(), location: z.string().max(120).optional(), prize: z.string().max(120).optional() },
+  ({ itemId, ...body }) => api('PUT', `tech/admin/items/${itemId}`, { body }));
+
+tool('delete_tech_item', 'destructive', 'Delete an event/news item you added by hand. (Fetched items can only be hidden.)',
+  { itemId: zId('item') }, ({ itemId }) => api('DELETE', `tech/admin/items/${itemId}`));
+
+tool('set_tech_source', 'write', 'Switch a tech feed source on/off, change how many items it brings per refresh, or tie it to career goals.',
+  { sourceId: zId('source'), enabled: z.boolean().optional(), maxItems: z.number().int().min(1).max(50).optional(), tracks: zTracks.optional() },
+  ({ sourceId, ...body }) => api('PUT', `tech/admin/sources/${sourceId}`, { body }));
+
+tool('add_tech_source', 'write', 'Add an RSS/Atom news feed to the tech feed (it is test-read before saving). tracks: tie all its articles to these goals (optional).',
+  { name: z.string().min(2).max(80), url: z.string().url(), tracks: zTracks.optional(), maxItems: z.number().int().min(1).max(30).optional() },
+  (body) => api('POST', 'tech/admin/sources', { body }));
+
+tool('set_tech_pass', 'write', 'Tech Pass settings. The personal tips ("Why it matters / Try this") in the tech feed are free for students with a paid program/course when freeForPaid is on; everyone else buys a pass for `price` ₹ lasting `days`. enabled: false makes tips free for everyone.',
+  { enabled: z.boolean().optional(), price: z.number().int().min(1).max(50000).optional(), days: z.number().int().min(1).max(730).optional(), freeForPaid: z.boolean().optional() },
+  (body) => api('PUT', 'tech/admin/pass', { body }));
+
+tool('gift_tech_pass', 'write', 'Give a student a free Tech Pass for some days (added on top of any pass they have). The student must have signed in once.',
+  { email: z.string().email(), days: z.number().int().min(1).max(730), note: z.string().max(200).optional() },
+  (body) => api('POST', 'tech/admin/passes', { body }));
+
+tool('list_tech_passes', 'read', 'Tech Passes bought or gifted (latest 200).', {},
+  async () => (await api('GET', 'tech/admin/passes')).map(p => ({ name: p.user?.name, email: p.user?.email, source: p.source, amount: p.amount, days: p.days,
+    startsIST: IST(p.startsAt), expiresIST: IST(p.expiresAt), active: new Date(p.expiresAt) > new Date(), paymentRef: p.paymentRef || undefined, note: p.note || undefined })));
+
+tool('remove_tech_source', 'destructive', 'Remove an RSS source you added (built-in sources can only be switched off).',
+  { sourceId: zId('source') }, ({ sourceId }) => api('DELETE', `tech/admin/sources/${sourceId}`));
 
 // ─────────────────────────────────────────────────────────
 // DOUBTS (lesson questions)

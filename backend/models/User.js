@@ -33,6 +33,17 @@ const userSchema = new mongoose.Schema({
     default: '',
     select: false,
   },
+  // Tech feed: the career goals this student follows (ids from utils/techTracks.js),
+  // plus anything they typed themselves ("Salesforce developer").
+  techGoal: {
+    tracks:  { type: [String], default: [] },
+    custom:  { type: String, default: '' },
+    keywords:{ type: [String], default: [] },   // words for matching their own goal
+    setAt:   { type: Date, default: null },
+    // Optional, for "near you" events. Typed by the student or filled from their location.
+    city:    { type: String, default: '' },
+    state:   { type: String, default: '' },
+  },
   // track which episodes they accessed
   accessedEpisodes: [{
     type: mongoose.Schema.Types.ObjectId,
