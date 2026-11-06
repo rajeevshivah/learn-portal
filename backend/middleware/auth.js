@@ -2,6 +2,19 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const ApiKey = require('../models/ApiKey');
+const Settings = require('../models/Settings');
+
+// "One device at a time" setting, cached so every request doesn't hit the DB.
+let settingsCache = { at: 0, single: true };
+async function singleDeviceOn() {
+  if (Date.now() - settingsCache.at < 30_000) return settingsCache.single;
+  try {
+    const s = await Settings.get();
+    settingsCache = { at: Date.now(), single: s.singleDeviceLogin !== false };
+  } catch { settingsCache.at = Date.now(); }
+  return settingsCache.single;
+}
+const forgetSettings = () => { settingsCache.at = 0; };
 
 // Protect any route — must be logged in.
 // Accepts either a normal login token (JWT) or an MCP access key ("lp_…").
@@ -32,8 +45,19 @@ const protect = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = await User.findById(decoded.id).select('-__v');
+    req.user = await User.findById(decoded.id).select('-__v +sessionId');
     if (!req.user) return res.status(401).json({ message: 'Account no longer exists' });
+
+    // One device at a time: a student's token must carry the latest login's id.
+    // Tokens from before this feature (no sid) keep working until the student
+    // signs in again somewhere, which sets a session id.
+    const current = req.user.sessionId || '';
+    if (req.user.role !== 'admin' && current && decoded.sid !== current && await singleDeviceOn()) {
+      return res.status(401).json({
+        code: 'SESSION_REPLACED',
+        message: 'You were signed out because your account was signed in on another device.',
+      });
+    }
     next();
   } catch {
     res.status(401).json({ message: 'Not authorized — invalid token' });
@@ -55,4 +79,4 @@ const loginOnly = (req, res, next) => {
   next();
 };
 
-module.exports = { protect, adminOnly, loginOnly };
+module.exports = { protect, adminOnly, loginOnly, forgetSettings };

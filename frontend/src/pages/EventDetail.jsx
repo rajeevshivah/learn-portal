@@ -390,6 +390,20 @@ export default function EventDetail() {
               </div>
             )}
 
+            {/* ── Seat ended (refunded or cancelled by us) ── */}
+            {(reg?.status === 'refunded' || reg?.status === 'cancelled') && (
+              <div className="card" style={{ marginBottom: 20, borderLeft: '3px solid var(--border-hi)' }}>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                  {reg.status === 'refunded' ? 'Your seat was refunded' : 'Your seat was cancelled'}
+                </div>
+                <p className="small muted">
+                  You no longer have access to this program’s classes and recordings.
+                  {reg.status === 'refunded' && <> See the details on your <Link to="/refunds">Refunds page</Link>.</>}
+                  {' '}Questions? Write to rajeev@rajeevshivah.me.
+                </p>
+              </div>
+            )}
+
             {/* ── Recordings (confirmed students only) ── */}
             {isActive && recordings.length > 0 && (
               <div id="recordings" className="card ed-recordings" style={{ marginBottom: 20, borderColor: 'var(--accent)' }}>

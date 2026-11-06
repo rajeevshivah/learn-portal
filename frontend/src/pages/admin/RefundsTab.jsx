@@ -13,6 +13,7 @@ const dur = (ms) => {
 // What the admin needs to decide, in one sentence
 function verdict(r) {
   if (r.type === 'payment_issue') return { ok: true, text: 'Payment problem. Check the facts in your bank or Razorpay.' };
+  if (r.type === 'admin') return { ok: true, text: 'You cancelled this seat with a refund. Send the money, then mark it sent.' };
   const w = r.window || {};
   const what = w.rule === 'course' ? 'after the course unlocked' : w.rule === 'recordings' ? 'after their seat was confirmed' : 'after the class ended';
   return { ok: r.eligible, text: `Sent ${dur(r.msAfterOpen)} ${what}, with ${dur(r.msLeftAtSubmit)} of the window left.` };
@@ -78,7 +79,7 @@ export default function RefundsTab({ onChange }) {
                     {r.user?.name || 'Student'} <span className="today-amt">₹{r.amountPaid}</span>
                     <span className={`rfa-st rfa-${r.status}`}>{STATUS_LABEL[r.status]}</span>
                   </div>
-                  <div className="today-meta">{r.title} · {r.type === 'guarantee' ? 'Not for me' : 'Payment problem'} · {r.user?.email}</div>
+                  <div className="today-meta">{r.title} · {r.type === 'guarantee' ? 'Not for me' : r.type === 'admin' ? 'Cancelled by you' : 'Payment problem'} · {r.user?.email}</div>
                   <div className="today-meta">
                     Requested {ist(r.createdAt)} · {r.method === 'razorpay' ? <>Razorpay <code>{r.paymentRef}</code></> : <>UPI, UTR <code>{r.paymentRef}</code>, refund to <code>{r.upiId}</code></>}
                   </div>

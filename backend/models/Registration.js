@@ -17,7 +17,8 @@ const registrationSchema = new mongoose.Schema({
 
   status: {
     type: String,
-    enum: ['pending', 'active', 'rejected', 'refunded'],   // refunded: access removed after a refund
+    // refunded: access removed after a refund | cancelled: removed by admin, no refund
+    enum: ['pending', 'active', 'rejected', 'refunded', 'cancelled'],
     default: 'active',
   },
 
@@ -36,6 +37,18 @@ const registrationSchema = new mongoose.Schema({
   approvedAt:         { type: Date, default: null },
 
   attended: { type: Boolean, default: false },
+
+  // Admin changes to this seat (moved to another account, cancelled), newest last.
+  // Emails are stored as text so the trail survives even if an account is deleted.
+  history: [{
+    action: { type: String, enum: ['transferred', 'cancelled'], required: true },
+    from:   { type: String, default: '' },     // email before
+    to:     { type: String, default: '' },     // email after (transfers)
+    note:   { type: String, default: '' },
+    by:     { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    at:     { type: Date, default: Date.now },
+    _id: false,
+  }],
 }, { timestamps: true });
 
 // One registration per user per event

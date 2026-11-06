@@ -9,6 +9,9 @@ const Settings     = require('../models/Settings');
 const { attachBoardNotes } = require('../utils/boardNotes');
 const { cloudinary, uploadImage } = require('../config/cloudinary');
 const { protect, adminOnly } = require('../middleware/auth');
+const User         = require('../models/User');
+const RefundRequest = require('../models/RefundRequest');
+const meet         = require('../utils/meetGuests');
 
 // ─────────────────────────────────────────────────────────
 // Helpers
@@ -459,6 +462,7 @@ router.post('/', protect, adminOnly, asyncHandler(async (req, res) => {
   }
 
   if (!body.recordingsCourse) body.recordingsCourse = null;
+  delete body.meetSync;   // managed only through /:id/meet
   const event = await LiveEvent.create(body);
   await syncAllLessons(event);
   res.status(201).json(event);
@@ -472,6 +476,7 @@ router.put('/:id', protect, adminOnly, asyncHandler(async (req, res) => {
   const body = { ...req.body };
   if (body.slug) body.slug = body.slug.toLowerCase().trim();
   delete body._id;
+  delete body.meetSync;   // managed only through /:id/meet, so a stale form can't undo it
 
   // Keep recording timestamps across full-form saves; stamp new/changed links.
   if (Array.isArray(body.sessions)) {
@@ -550,10 +555,11 @@ router.delete('/:id', protect, adminOnly, asyncHandler(async (req, res) => {
 router.get('/:id/registrations', protect, adminOnly, asyncHandler(async (req, res) => {
   const { status } = req.query;
   const filter = { event: req.params.id };
-  if (status && ['pending', 'active', 'rejected'].includes(status)) filter.status = status;
+  if (status && ['pending', 'active', 'rejected', 'refunded', 'cancelled'].includes(status)) filter.status = status;
 
   const regs = await Registration.find(filter)
     .populate('user', 'name email avatar')
+    .populate('history.by', 'name')
     .sort({ createdAt: -1 });
 
   res.json(regs);
@@ -581,6 +587,7 @@ router.put('/registrations/:id/approve', protect, adminOnly, asyncHandler(async 
   reg.approvedAt = new Date();
   reg.rejectReason = '';
   await reg.save();
+  meet.queueSync(reg.event._id);
 
   res.json({ message: 'Approved — WhatsApp link unlocked for this student', registration: reg });
 }));
@@ -655,6 +662,199 @@ router.post(
     res.status(201).json({ message: 'Recording published as an episode', episode });
   })
 );
+
+// ─────────────────────────────────────────────────────────
+// SEAT CHANGES (admin): find, move to another account, cancel
+// ─────────────────────────────────────────────────────────
+const EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const escapeRx = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// ── GET /api/events/admin/find-registration?q= ──
+// Across ALL programs, by student name/email, phone, UTR or Razorpay payment id.
+// For "I paid but can't find my registration / forgot my email".
+router.get('/admin/find-registration', protect, adminOnly, asyncHandler(async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (q.length < 3) return res.status(400).json({ message: 'Type at least 3 characters' });
+  const rx = new RegExp(escapeRx(q), 'i');
+  const digits = q.replace(/\D/g, '');
+  const users = await User.find({ $or: [{ name: rx }, { email: rx }] }).select('_id').limit(50);
+  const or = [{ user: { $in: users.map(u => u._id) } }, { utr: rx }];
+  // Phone numbers are stored as typed ("+91 87805 28954"), so match the digits with anything between them
+  if (digits.length >= 6) or.push({ phone: new RegExp(digits.slice(-10).split('').join('\\D*')) });
+  else or.push({ phone: rx });
+  const regs = await Registration.find({ $or: or })
+    .populate('user', 'name email')
+    .populate('event', 'title slug')
+    .sort({ createdAt: -1 })
+    .limit(50);
+  res.json(regs.filter(r => r.event));
+}));
+
+// ── PUT /api/events/registrations/:id/transfer ──
+// Move a seat to another email: the student lost access to the address they
+// registered with, or registered with the wrong one. Body: { email, name?, note? }
+// If nobody has signed in with that email yet, an account is created for it;
+// the student just signs in with Google using that address.
+router.put('/registrations/:id/transfer', protect, adminOnly, asyncHandler(async (req, res) => {
+  const email = String(req.body.email || '').toLowerCase().trim();
+  if (!EMAIL_RX.test(email)) return res.status(400).json({ message: 'Enter a valid email address' });
+
+  const reg = await Registration.findById(req.params.id).populate('user', 'name email');
+  if (!reg) return res.status(404).json({ message: 'Registration not found' });
+  if (!['active', 'pending'].includes(reg.status)) {
+    return res.status(400).json({ message: `This registration is ${reg.status}; only confirmed or pending seats can be moved` });
+  }
+  if (await RefundRequest.exists({ registration: reg._id, status: { $in: ['pending', 'approved'] } })) {
+    return res.status(409).json({ message: 'This seat has an open refund request. Settle it in Refunds first.' });
+  }
+  const fromEmail = reg.user?.email || '';
+  if (fromEmail.toLowerCase() === email) return res.status(400).json({ message: 'That is already the email on this registration' });
+
+  let target = await User.findOne({ email });
+  let created = false;
+  if (!target) {
+    const name = String(req.body.name || '').trim() || reg.user?.name || email.split('@')[0];
+    target = await User.create({ name: name.slice(0, 120), email, role: 'student' });
+    created = true;
+  }
+
+  const clash = await Registration.findOne({ user: target._id, event: reg.event });
+  if (clash) {
+    if (['active', 'pending'].includes(clash.status)) {
+      return res.status(409).json({ message: `${email} already has a ${clash.status === 'active' ? 'confirmed' : 'pending'} seat in this program` });
+    }
+    await clash.deleteOne();   // an old rejected/refunded/cancelled attempt — the moved seat replaces it
+  }
+
+  reg.user = target._id;
+  reg.history.push({
+    action: 'transferred', from: fromEmail, to: email,
+    note: String(req.body.note || '').trim().slice(0, 300), by: req.user._id,
+  });
+  await reg.save();
+  meet.queueSync(reg.event);
+
+  res.json({
+    message: created
+      ? `Seat moved to ${email}. They sign in with Google using that email and everything is there.`
+      : `Seat moved to ${email}.`,
+    createdAccount: created,
+    registration: await reg.populate('user', 'name email'),
+  });
+}));
+
+// ── PUT /api/events/registrations/:id/cancel ──
+// Remove a confirmed seat. Body:
+//   { reason, refund: false }                         → cancelled, no money back
+//   { reason, refund: true, amount?, manual?, refundRef?, upiId? }
+//       Razorpay: refunded through Razorpay now (manual: true if you already did it in the dashboard)
+//       UPI:      recorded as approved in Refunds; send the money, then mark it sent there
+router.put('/registrations/:id/cancel', protect, adminOnly, asyncHandler(async (req, res) => {
+  const { payMethod } = require('../utils/refundWindow');
+  const { settleRefund } = require('./refunds');
+
+  const reg = await Registration.findById(req.params.id).populate('user', 'name email').populate('event', 'title');
+  if (!reg) return res.status(404).json({ message: 'Registration not found' });
+  if (reg.status !== 'active') {
+    return res.status(400).json({ message: reg.status === 'pending' ? 'This payment isn’t confirmed yet. Use Reject instead.' : `This registration is already ${reg.status}` });
+  }
+  if (await RefundRequest.exists({ registration: reg._id, status: { $in: ['pending', 'approved'] } })) {
+    return res.status(409).json({ message: 'The student already asked for a refund. Decide it in Refunds instead.' });
+  }
+  const reason = String(req.body.reason || '').trim().slice(0, 300);
+  if (reason.length < 3) return res.status(400).json({ message: 'Write a short reason (kept in the seat history)' });
+
+  let refund = null;
+  if (req.body.refund) {
+    const pm = payMethod(reg);
+    if (!(reg.amount > 0) || !pm.paymentRef) return res.status(400).json({ message: 'Nothing was paid for this seat, so there is nothing to refund' });
+    const upiId = String(req.body.upiId || '').trim().slice(0, 80);
+    refund = new RefundRequest({
+      user: reg.user._id, kind: 'event', event: reg.event._id, registration: reg._id, title: reg.event.title,
+      type: 'admin', reason, amountPaid: reg.amount, method: pm.method, paymentRef: pm.paymentRef, upiId,
+      window: { rule: 'admin', state: 'open', text: 'Refunded by the admin while cancelling the seat.' },
+      eligible: true,
+    });
+    try {
+      await settleRefund(refund, {
+        amount: req.body.amount, manual: req.body.manual, refundRef: req.body.refundRef, removeAccess: true,
+      });
+    } catch (e) {
+      if (e.status === 400) return res.status(400).json({ message: e.message });
+      throw e;
+    }
+  }
+
+  const fresh = await Registration.findById(reg._id);
+  if (fresh.status === 'active') fresh.status = refund ? 'refunded' : 'cancelled';
+  fresh.history.push({ action: 'cancelled', from: reg.user?.email || '', note: reason, by: req.user._id });
+  await fresh.save();
+  meet.queueSync(reg.event._id);
+
+  res.json({
+    message: !refund ? 'Seat cancelled. The student no longer has access.'
+      : refund.status === 'refunded' ? `Seat cancelled and ₹${refund.refundAmount} refunded${refund.refundRef ? ` (${refund.refundRef})` : ''}.`
+        : `Seat cancelled. Refund of ₹${refund.refundAmount} is recorded in Refunds: send it by UPI, then mark it sent there.`,
+    status: fresh.status,
+    refund: refund ? { refundId: refund._id, status: refund.status, amount: refund.refundAmount, refundRef: refund.refundRef } : null,
+  });
+}));
+
+// ─────────────────────────────────────────────────────────
+// MEET GUEST LIST (admin)
+// ─────────────────────────────────────────────────────────
+const meetView = async (event) => ({
+  connected: meet.isConfigured(),
+  enabled: Boolean(event.meetSync?.enabled),
+  calendarEventId: event.meetSync?.calendarEventId || '',
+  meetLinks: [...new Set((event.sessions || []).map(s => s.joinUrl).filter(u => meet.meetCode(u)))],
+  confirmed: await Registration.countDocuments({ event: event._id, status: 'active' }),
+  guestsManaged: (event.meetSync?.managedEmails || []).length,
+  lastSync: event.meetSync?.lastSync?.at ? event.meetSync.lastSync : null,
+});
+
+router.get('/:id/meet', protect, adminOnly, asyncHandler(async (req, res) => {
+  const event = await LiveEvent.findById(req.params.id);
+  if (!event) return res.status(404).json({ message: 'Event not found' });
+  res.json(await meetView(event));
+}));
+
+// Body: { enabled?, calendarRef? }  calendarRef: event link or id; "" = find it from the Meet link
+router.put('/:id/meet', protect, adminOnly, asyncHandler(async (req, res) => {
+  const event = await LiveEvent.findById(req.params.id);
+  if (!event) return res.status(404).json({ message: 'Event not found' });
+  if (req.body.calendarRef !== undefined) {
+    const raw = String(req.body.calendarRef || '').trim();
+    const id = meet.parseEventRef(raw);
+    if (raw && !id) return res.status(400).json({ message: 'That doesn’t look like a Google Calendar event link. Open the event in Google Calendar and copy the address from the browser, or leave it blank to find it from the Meet link.' });
+    if (id !== event.meetSync.calendarEventId) event.meetSync.managedEmails = [];   // different meeting: start fresh
+    event.meetSync.calendarEventId = id;
+  }
+  if (req.body.enabled !== undefined) event.meetSync.enabled = Boolean(req.body.enabled);
+  await event.save();
+
+  let sync = null;
+  if (event.meetSync.enabled) {
+    if (!meet.isConfigured()) {
+      return res.status(400).json({ message: 'Saved, but Google Calendar isn’t connected on the server yet, so nothing was synced. See the setup steps.', ...(await meetView(event)) });
+    }
+    try { sync = await meet.syncEvent(event._id); }
+    catch (e) { return res.status(400).json({ message: e.message, ...(await meetView(await LiveEvent.findById(event._id))) }); }
+  }
+  res.json({ message: sync ? sync.message : 'Meet guest list switched off. Guests already invited stay on the invite.', ...(await meetView(await LiveEvent.findById(event._id))) });
+}));
+
+router.post('/:id/meet/sync', protect, adminOnly, asyncHandler(async (req, res) => {
+  const event = await LiveEvent.findById(req.params.id);
+  if (!event) return res.status(404).json({ message: 'Event not found' });
+  if (!event.meetSync?.enabled) return res.status(400).json({ message: 'Switch on the Meet guest list for this program first' });
+  try {
+    const r = await meet.syncEvent(event._id);
+    res.json({ message: r.message, ...(await meetView(await LiveEvent.findById(event._id))) });
+  } catch (e) {
+    res.status(400).json({ message: e.message, ...(await meetView(await LiveEvent.findById(event._id))) });
+  }
+}));
 
 // ── ADMIN: upload an event thumbnail image → returns Cloudinary URL ──
 router.post('/upload-image', protect, adminOnly, uploadImage.single('file'), asyncHandler(async (req, res) => {

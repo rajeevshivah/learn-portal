@@ -78,6 +78,25 @@ const liveEventSchema = new mongoose.Schema({
   isCompleted: { type: Boolean, default: false },
   // Once registration closes, only registered students (and admins) can see it.
   hideWhenClosed: { type: Boolean, default: true },
+
+  // ── Google Meet guest list ──
+  // When on, every confirmed student's email is kept on the guest list of the
+  // Google Calendar event that holds the class Meet link. With the meeting's
+  // access set to "Trusted", only guests join directly; a forwarded link has
+  // to ask to join. Managed only through /api/events/:id/meet (never the form).
+  meetSync: {
+    enabled:         { type: Boolean, default: false },
+    calendarEventId: { type: String, default: '' },     // series id; found from the Meet link if blank
+    managedEmails:   { type: [String], default: [] },   // guests WE added; others on the invite are left alone
+    lastSync: {
+      at:      { type: Date, default: null },
+      ok:      { type: Boolean, default: null },
+      message: { type: String, default: '' },
+      guests:  { type: Number, default: 0 },
+      added:   { type: Number, default: 0 },
+      removed: { type: Number, default: 0 },
+    },
+  },
 }, { timestamps: true });
 
 // Virtual: when does the whole event begin / end?

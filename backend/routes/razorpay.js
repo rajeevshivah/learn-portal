@@ -113,6 +113,7 @@ async function fulfill(payment, rzpPayment = {}) {
           expectation: payment.form?.expectation || existing?.expectation || '',
         },
       });
+      require('../utils/meetGuests').queueSync(payment.event);
     }
   }
 

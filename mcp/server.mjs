@@ -105,6 +105,7 @@ const regRow = (r) => ({
   phone: r.phone, college: r.college, amount: r.amount, utr: r.utr,
   screenshotUrl: r.screenshotUrl || undefined, expectation: r.expectation || undefined,
   attended: r.attended, event: r.event?.title, registeredIST: IST(r.createdAt),
+  ...(r.history?.length ? { history: r.history.map(h => ({ action: h.action, from: h.from, to: h.to || undefined, note: h.note || undefined, atIST: IST(h.at) })) } : {}),
   ...(r.dupUtr ? { warning: 'UTR already used on another payment. Do not approve without checking.' } : {}),
 });
 const enrollRow = (e) => ({
@@ -305,7 +306,7 @@ tool('set_class_recording', 'write',
   ({ eventId, sessionId, recordingUrl }) => api('PUT', `events/${eventId}/sessions/${sessionId}/recording`, { body: { recordingUrl } }));
 
 tool('list_registrations', 'read', 'Registrations for one event (name, email, phone, college, status, UTR, attended).',
-  { eventId: zId('event'), status: z.enum(['pending', 'active', 'rejected']).optional() },
+  { eventId: zId('event'), status: z.enum(['pending', 'active', 'rejected', 'refunded', 'cancelled']).optional() },
   async ({ eventId, status }) => (await api('GET', `events/${eventId}/registrations`, { query: { status } })).map(regRow));
 
 tool('list_pending_registrations', 'read', 'All webinar registrations waiting for UPI payment approval, oldest first. Check the UTR against your UPI app before approving. Rows with a "warning" reuse a UTR seen on another payment: never approve those without asking the admin.',
@@ -320,6 +321,32 @@ tool('reject_registration', 'write', 'Reject a pending webinar registration; the
 
 tool('toggle_attendance', 'write', 'Flip the attended flag on a registration.',
   { registrationId: zId('registration') }, ({ registrationId }) => api('PUT', `events/registrations/${registrationId}/attended`));
+
+tool('find_registration', 'read', 'Find webinar registrations across ALL programs by student name, email, phone number, UTR or Razorpay payment id (pay_…). Use it when a student says they paid but can\'t find their registration or forgot which email they used.',
+  { query: z.string().min(3).describe('name, email, phone, UTR or pay_… id') },
+  async ({ query }) => (await api('GET', 'events/admin/find-registration', { query: { q: query } })).map(regRow));
+
+tool('transfer_registration', 'write', 'Move a confirmed or pending seat to another email (student lost access to the email they registered with, or used the wrong one). Access, recordings and refund rights move with it. If nobody has signed in with that email yet, an account is created and the student simply signs in with Google using it. Also updates the Meet guest list.',
+  { registrationId: zId('registration'), email: z.string().email(), name: z.string().max(120).optional(),
+    note: z.string().max(300).optional().describe('why, kept in the seat history') },
+  ({ registrationId, ...body }) => api('PUT', `events/registrations/${registrationId}/transfer`, { body }));
+
+tool('cancel_registration', 'destructive', 'Cancel a CONFIRMED seat: the student loses access to classes, recordings and the WhatsApp link on the portal (remove them from the WhatsApp group yourself). refund: false cancels without money back. refund: true MOVES MONEY: a Razorpay payment is refunded through Razorpay immediately (manual: true if you already refunded it in the Razorpay dashboard); a UPI payment is recorded in Refunds as approved, then send the money and call mark_refund_sent. amount defaults to the full amount. If the student already asked for a refund, use the refund tools instead.',
+  { registrationId: zId('registration'), reason: z.string().min(3).max(300), refund: z.boolean(),
+    amount: z.number().int().positive().optional(), manual: z.boolean().optional(),
+    refundRef: z.string().max(80).optional(), upiId: z.string().max(80).optional() },
+  ({ registrationId, ...body }) => api('PUT', `events/registrations/${registrationId}/cancel`, { body }));
+
+// ── Meet guest list ──
+tool('get_meet_guests', 'read', 'Meet guest list status for a program: whether it is on, whether Google Calendar is connected, the Meet link, confirmed students vs guests on the invite, and the last sync result.',
+  { eventId: zId('event') }, ({ eventId }) => api('GET', `events/${eventId}/meet`));
+
+tool('set_meet_guests', 'write', 'Switch the Meet guest list on/off for a program. When on, every confirmed student is kept on the guest list of the Google Calendar event with the class Meet link (removed again if cancelled/refunded), so with the meeting set to "Trusted" a forwarded link has to ask to join. calendarRef: the Google Calendar event link or id; "" finds it from the Meet link on the classes. Syncs right away when on.',
+  { eventId: zId('event'), enabled: z.boolean().optional(), calendarRef: z.string().max(2000).optional() },
+  ({ eventId, ...body }) => api('PUT', `events/${eventId}/meet`, { body }));
+
+tool('sync_meet_guests', 'write', 'Update the Meet guest list of a program now (normally automatic after every payment, approval, move or cancellation).',
+  { eventId: zId('event') }, ({ eventId }) => api('POST', `events/${eventId}/meet/sync`));
 
 // ─────────────────────────────────────────────────────────
 // CLASS FEEDBACK & TESTIMONIALS
@@ -477,6 +504,9 @@ tool('search_students', 'read', 'Find students by name or email; shows their cou
       joinedIST: IST(u.createdAt), enrollments: u.enrollments, registrations: u.registrations }));
   });
 
+tool('sign_out_student', 'write', 'Sign a student out on every device (e.g. their account is being shared). They can sign in again with Google.',
+  { userId: zId('user') }, ({ userId }) => api('PUT', `auth/users/${userId}/sign-out`));
+
 // ─────────────────────────────────────────────────────────
 // DOUBTS (lesson questions)
 // ─────────────────────────────────────────────────────────
@@ -520,7 +550,7 @@ tool('delete_doubt', 'destructive', 'Permanently delete a doubt and all its repl
 // ─────────────────────────────────────────────────────────
 const refundRow = (r) => ({
   refundId: r._id, student: r.user?.name, email: r.user?.email, item: r.title, kind: r.kind,
-  type: r.type === 'guarantee' ? 'not for me (refund guarantee)' : 'payment problem',
+  type: r.type === 'guarantee' ? 'not for me (refund guarantee)' : r.type === 'admin' ? 'cancelled by admin' : 'payment problem',
   amountPaid: r.amountPaid, method: r.method, paymentRef: r.paymentRef, refundToUpi: r.upiId || undefined,
   requestedIST: IST(r.createdAt), withinPolicy: r.eligible, window: r.window?.text,
   status: r.status, refundAmount: r.refundAmount || undefined, refundRef: r.refundRef || undefined,
@@ -624,7 +654,9 @@ tool('delete_promotion', 'destructive', 'Delete a promotion.', { promotionId: zI
 // ─────────────────────────────────────────────────────────
 // PAYMENT SETTINGS
 // ─────────────────────────────────────────────────────────
-tool('get_payment_settings', 'read', 'UPI id, display name, payment note and custom QR.', {}, () => api('GET', 'settings'));
+tool('get_payment_settings', 'read', 'UPI id, display name, payment note, custom QR, and whether students are limited to one signed-in device (singleDeviceLogin).', {}, () => api('GET', 'settings'));
+tool('set_single_device_login', 'write', 'Turn "one device at a time" on or off for students. On: a new sign-in signs the student out of their previous device, so one paid account can\'t be used by two people at once. Admins are never affected.',
+  { on: z.boolean() }, ({ on }) => api('PUT', 'settings', { body: { singleDeviceLogin: on } }));
 tool('update_payment_settings', 'write', 'Change UPI id, display name or the note shown on payment pages.',
   { upiId: z.string().optional(), upiName: z.string().optional(), paymentNote: z.string().optional() },
   (a) => api('PUT', 'settings', { body: a }));

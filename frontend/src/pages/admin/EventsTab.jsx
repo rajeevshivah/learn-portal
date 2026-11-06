@@ -286,6 +286,184 @@ function FeedbackPanel({ ev, setToast }) {
   );
 }
 
+// ── Meet guest list: keep confirmed students on the class meeting's invite ──
+function MeetPanel({ ev, setToast }) {
+  const [info, setInfo] = useState(null);
+  const [ref, setRef] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const load = useCallback(() => axios.get(`${API}/events/${ev._id}/meet`)
+    .then(({ data }) => { setInfo(data); setRef(data.calendarEventId || ''); })
+    .catch(e => setErr(e.response?.data?.message || 'Could not load')), [ev._id]);
+  useEffect(() => { load(); }, [load]);
+
+  const save = async (body) => {
+    setBusy(true); setErr('');
+    try {
+      const { data } = await axios.put(`${API}/events/${ev._id}/meet`, body);
+      setInfo(data); setRef(data.calendarEventId || ''); setToast(data.message);
+    } catch (e) {
+      const d = e.response?.data;
+      if (d?.connected !== undefined) { setInfo(d); setRef(d.calendarEventId || ''); }
+      setErr(d?.message || 'Could not save');
+    } finally { setBusy(false); }
+  };
+  const syncNow = async () => {
+    setBusy(true); setErr('');
+    try { const { data } = await axios.post(`${API}/events/${ev._id}/meet/sync`); setInfo(data); setToast(data.message); }
+    catch (e) { const d = e.response?.data; if (d?.connected !== undefined) setInfo(d); setErr(d?.message || 'Sync failed'); }
+    finally { setBusy(false); }
+  };
+
+  if (!info) return <div className="meet-panel small muted">{err || 'Loading…'}</div>;
+  const ls = info.lastSync;
+  return (
+    <div className="meet-panel">
+      <div className="meet-head">
+        <div>
+          <div className="meet-title">Meet guest list</div>
+          <p className="small muted">
+            Every confirmed student is added to the class meeting’s calendar invite, and removed if their seat is
+            cancelled or refunded. Set the meeting’s access to <strong>Trusted</strong> in Google Meet: guests join directly,
+            anyone with a forwarded link has to ask to join.
+          </p>
+        </div>
+        <label className="switch-row">
+          <input type="checkbox" checked={info.enabled} disabled={busy}
+            onChange={e => save({ enabled: e.target.checked, calendarRef: ref })} />
+          <span>{info.enabled ? 'On' : 'Off'}</span>
+        </label>
+      </div>
+
+      {!info.connected && (
+        <div className="meet-warn small">
+          Google Calendar isn’t connected on the server yet. Run <code>node scripts/google-calendar-token.js</code> once
+          and add the three <code>GOOGLE_CAL_…</code> values on Render. You can switch this on now; it starts working once they’re added.
+        </div>
+      )}
+
+      <div className="meet-grid small">
+        <div><span className="muted">Meet link on classes</span><br />
+          {info.meetLinks.length ? info.meetLinks.map(l => <code key={l} className="meet-code">{l.replace(/^https:\/\//, '')}</code>)
+            : <span style={{ color: 'var(--danger)' }}>None. Add the Google Meet link to the classes.</span>}
+        </div>
+        <div><span className="muted">Confirmed students</span><br /><strong>{info.confirmed}</strong></div>
+        <div><span className="muted">On the invite (added by the portal)</span><br /><strong>{info.guestsManaged}</strong></div>
+      </div>
+
+      <label className="small muted" style={{ display: 'block', margin: '12px 0 4px' }}>
+        Calendar event (optional: found from the Meet link if blank)
+      </label>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <input className="input" style={{ flex: '1 1 280px' }} placeholder="Paste the Google Calendar event link"
+          value={ref} onChange={e => setRef(e.target.value)} />
+        <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => save({ calendarRef: ref })}>Save</button>
+        {info.enabled && <button className="btn btn-primary btn-sm" disabled={busy} onClick={syncNow}>{busy ? 'Syncing…' : 'Sync now'}</button>}
+      </div>
+
+      {err && <div className="small meet-err">{err}</div>}
+      {ls && (
+        <div className="small muted" style={{ marginTop: 10 }}>
+          Last sync {new Date(ls.at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true })}:{' '}
+          <span style={{ color: ls.ok ? 'var(--success)' : 'var(--danger)' }}>{ls.message}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Move a seat to another email / cancel it (with or without a refund) ──
+function SeatAction({ reg, kind, onDone, onClose, setToast }) {
+  const paidOnline = /^RZP pay_/.test(reg.utr || '');
+  const paid = reg.amount > 0 && Boolean(reg.utr);
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [note, setNote] = useState('');
+  const [refund, setRefund] = useState(paid);
+  const [amount, setAmount] = useState(reg.amount);
+  const [manual, setManual] = useState(false);
+  const [upiId, setUpiId] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const submit = async () => {
+    setErr('');
+    if (kind === 'move' && !email.trim()) return setErr('Enter the email they can sign in with');
+    if (kind === 'cancel' && note.trim().length < 3) return setErr('Write a short reason');
+    if (kind === 'cancel' && refund && paidOnline && !manual &&
+      !window.confirm(`Refund ₹${amount} to ${reg.user?.email} through Razorpay now? This moves money and can’t be undone.`)) return;
+    setBusy(true);
+    try {
+      const { data } = kind === 'move'
+        ? await axios.put(`${API}/events/registrations/${reg._id}/transfer`, { email, name, note })
+        : await axios.put(`${API}/events/registrations/${reg._id}/cancel`, { reason: note, refund, amount: Number(amount), manual, upiId });
+      setToast(data.message); onDone();
+    } catch (e) { setErr(e.response?.data?.message || 'Something went wrong'); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="seat-action">
+      {kind === 'move' ? (
+        <>
+          <div className="seat-action-title">Move this seat to another email</div>
+          <p className="small muted">Their access, recordings and refund rights move with it. If nobody has signed in with that
+            email yet, an account is created: they just sign in with Google using it.</p>
+          <div className="seat-fields">
+            <input className="input" type="email" placeholder="New email (Gmail they can sign in with)" value={email}
+              onChange={e => setEmail(e.target.value)} autoFocus />
+            <input className="input" placeholder="Name (optional)" value={name} onChange={e => setName(e.target.value)} />
+            <input className="input" placeholder="Note, e.g. lost access to old Gmail (optional)" value={note} onChange={e => setNote(e.target.value)} />
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="seat-action-title">Cancel this seat</div>
+          <p className="small muted">The student loses access to classes, recordings and the WhatsApp link on the portal.
+            Remove them from the WhatsApp group yourself.</p>
+          <div className="seat-fields">
+            <input className="input" placeholder="Reason (kept in the seat history)" value={note} onChange={e => setNote(e.target.value)} autoFocus />
+          </div>
+          {paid ? (
+            <div className="seat-refund">
+              <label className="checkbox-row small">
+                <input type="checkbox" checked={refund} onChange={e => setRefund(e.target.checked)} />
+                Refund the payment
+              </label>
+              {refund && (
+                <div className="seat-fields">
+                  <label className="small">Amount ₹
+                    <input className="input rfa-amt" type="number" min="1" max={reg.amount} value={amount} onChange={e => setAmount(e.target.value)} />
+                  </label>
+                  {paidOnline ? (
+                    <label className="checkbox-row small">
+                      <input type="checkbox" checked={manual} onChange={e => setManual(e.target.checked)} />
+                      I already refunded it in the Razorpay dashboard
+                    </label>
+                  ) : (
+                    <input className="input" placeholder="Their UPI ID for the refund (optional)" value={upiId} onChange={e => setUpiId(e.target.value)} />
+                  )}
+                  <span className="small muted">
+                    {paidOnline ? (manual ? 'Recorded as refunded.' : 'Refunded through Razorpay right away.') : 'Paid by UPI: recorded in Refunds as approved. Send the money, then mark it sent there.'}
+                  </span>
+                </div>
+              )}
+            </div>
+          ) : <p className="small muted">Nothing was paid for this seat.</p>}
+        </>
+      )}
+      {err && <div className="small meet-err">{err}</div>}
+      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+        <button className={`btn btn-sm ${kind === 'cancel' ? 'btn-danger' : 'btn-primary'}`} disabled={busy} onClick={submit}>
+          {busy ? 'Working…' : kind === 'move' ? 'Move seat' : refund && paid ? `Cancel and refund ₹${amount}` : 'Cancel seat'}
+        </button>
+        <button className="btn btn-ghost btn-sm" disabled={busy} onClick={onClose}>Close</button>
+      </div>
+    </div>
+  );
+}
+
 export default function EventsTab({ onChange }) {
   const [events, setEvents]   = useState([]);
   const [courses, setCourses] = useState([]);
@@ -305,6 +483,8 @@ export default function EventsTab({ onChange }) {
 
   const [recordingsFor, setRecordingsFor] = useState(null); // event id whose recordings panel is open
   const [feedbackFor, setFeedbackFor] = useState(null);     // event id whose feedback panel is open
+  const [meetFor, setMeetFor] = useState(null);             // event id whose Meet guest panel is open
+  const [seatAction, setSeatAction] = useState(null);       // { id, kind: 'move' | 'cancel' }
   const [showImport, setShowImport] = useState(false);   // JSON import panel toggle
   const [pasteText, setPasteText]   = useState('');      // pasted JSON
 
@@ -581,7 +761,7 @@ export default function EventsTab({ onChange }) {
         </div>
 
         {regs.length > 0 && (() => {
-          const counts = { all: regs.length, pending: 0, active: 0, rejected: 0 };
+          const counts = { all: regs.length, pending: 0, active: 0, rejected: 0, refunded: 0, cancelled: 0 };
           regs.forEach(r => { counts[r.status] = (counts[r.status] || 0) + 1; });
           const utrCount = {};
           regs.forEach(r => { if (r.utr) utrCount[r.utr] = (utrCount[r.utr] || 0) + 1; });
@@ -589,10 +769,11 @@ export default function EventsTab({ onChange }) {
           const allSel = shownPending.length > 0 && shownPending.every(r => regSel.has(r._id));
           return (
             <div className="regs-bar">
-              <input className="input regs-search" placeholder="Search name, email, phone, college or UTR"
+              <input className="input regs-search" placeholder="Search name, email, phone, college, UTR or Razorpay pay_ id"
                 value={regQuery} onChange={e => setRegQuery(e.target.value)} />
               <div className="regs-chips">
-                {[['all', 'All'], ['pending', 'Pending'], ['active', 'Confirmed'], ['rejected', 'Rejected']].map(([k, l]) => (
+                {[['all', 'All'], ['pending', 'Pending'], ['active', 'Confirmed'], ['rejected', 'Rejected'], ['refunded', 'Refunded'], ['cancelled', 'Cancelled']]
+                  .filter(([k]) => !['refunded', 'cancelled'].includes(k) || counts[k] > 0).map(([k, l]) => (
                   <button key={k} type="button" className={`btn btn-sm ${regFilter === k ? 'btn-primary' : 'btn-ghost'}`}
                     onClick={() => { setRegFilter(k); setRegSel(new Set()); }}>{l} {counts[k] || 0}</button>
                 ))}
@@ -655,11 +836,21 @@ export default function EventsTab({ onChange }) {
                         {r.rejectReason}
                       </div>
                     )}
+                    {r.history?.length > 0 && (
+                      <ul className="seat-history small muted">
+                        {r.history.map((h, i) => (
+                          <li key={i}>
+                            {h.action === 'transferred' ? <>Moved from <strong>{h.from}</strong> to <strong>{h.to}</strong></> : <>Cancelled</>}
+                            {' · '}{fmt(h.at)}{h.by?.name ? ` by ${h.by.name}` : ''}{h.note ? ` · “${h.note}”` : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
                     <span className={`badge badge-${
-                      r.status === 'active' ? 'success' : r.status === 'pending' ? 'warning' : 'danger'
+                      r.status === 'active' ? 'success' : r.status === 'pending' ? 'warning' : ['refunded', 'cancelled'].includes(r.status) ? 'muted' : 'danger'
                     }`}>{r.status}</span>
 
                     {r.status === 'pending' && (
@@ -674,8 +865,22 @@ export default function EventsTab({ onChange }) {
                         Attended
                       </label>
                     )}
+                    {['active', 'pending'].includes(r.status) && (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="btn btn-ghost btn-sm" onClick={() => setSeatAction({ id: r._id, kind: 'move' })}>Move to email</button>
+                        {r.status === 'active' && (
+                          <button className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}
+                            onClick={() => setSeatAction({ id: r._id, kind: 'cancel' })}>Cancel seat</button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
+                {seatAction?.id === r._id && (
+                  <SeatAction key={seatAction.kind} reg={r} kind={seatAction.kind} setToast={setToast}
+                    onClose={() => setSeatAction(null)}
+                    onDone={() => { setSeatAction(null); openRegs(viewingRegs, true); load(); onChange?.(); }} />
+                )}
               </div>
             ))}
           </div>
@@ -1049,6 +1254,10 @@ export default function EventsTab({ onChange }) {
                     onClick={() => setFeedbackFor(feedbackFor === ev._id ? null : ev._id)}>
                     ⭐ Feedback
                   </button>
+                  <button className="btn btn-ghost btn-sm"
+                    onClick={() => setMeetFor(meetFor === ev._id ? null : ev._id)}>
+                    🔒 Meet guests{ev.meetSync?.enabled && <span className="badge badge-success" style={{ marginLeft: 6 }}>on</span>}
+                  </button>
                   <button className="btn btn-ghost btn-sm" onClick={() => startEdit(ev)}>Edit</button>
                   <button className="btn btn-ghost btn-sm" onClick={() => remove(ev)}
                     style={{ color: 'var(--danger)' }}>Delete</button>
@@ -1058,6 +1267,7 @@ export default function EventsTab({ onChange }) {
                 <RecordingsPanel key={ev._id + (ev.updatedAt || '')} ev={ev} courses={courses} onSaved={load} setToast={setToast} />
               )}
               {feedbackFor === ev._id && <FeedbackPanel ev={ev} setToast={setToast} />}
+              {meetFor === ev._id && <MeetPanel ev={ev} setToast={setToast} />}
             </div>
           ))}
         </div>

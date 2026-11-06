@@ -17,18 +17,25 @@ export default function StudentsTab() {
     return () => clearTimeout(t);
   }, [search]);
 
-  const badge = (s) => s === 'active' ? 'badge-success' : s === 'pending' ? 'badge-warning' : 'badge-danger';
+  const badge = (s) => s === 'active' ? 'badge-success' : s === 'pending' ? 'badge-warning' : ['refunded', 'cancelled'].includes(s) ? 'badge-muted' : 'badge-danger';
+  const [msg, setMsg] = useState('');
+  const signOut = async (u) => {
+    if (!window.confirm(`Sign ${u.email} out on every device?`)) return;
+    try { const { data } = await axios.put(`${API}/auth/users/${u._id}/sign-out`); setMsg(data.message); }
+    catch (err) { setMsg(err.response?.data?.message || 'Could not sign them out'); }
+  };
 
   return (
     <div>
       <input className="input" style={{ maxWidth: 360, marginBottom: 16 }}
         placeholder="Search by name or email…" value={search} onChange={e => setSearch(e.target.value)} />
+      {msg && <p className="small" style={{ marginBottom: 12, color: 'var(--success)' }}>{msg}</p>}
 
       {loading ? <div className="spinner-page">Loading…</div> :
        users.length === 0 ? <div className="empty-state">No students found.</div> : (
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>Student</th><th>Joined</th><th>Enrollments</th></tr></thead>
+            <thead><tr><th>Student</th><th>Joined</th><th>Courses &amp; programs</th><th></th></tr></thead>
             <tbody>
               {users.map(u => (
                 <tr key={u._id}>
@@ -43,14 +50,24 @@ export default function StudentsTab() {
                   </td>
                   <td className="small muted">{new Date(u.createdAt).toLocaleDateString('en-IN', { dateStyle: 'medium' })}</td>
                   <td>
-                    {u.enrollments.length === 0 ? <span className="small muted">—</span> : (
+                    {u.enrollments.length + (u.registrations?.length || 0) === 0 ? <span className="small muted">—</span> : (
                       <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                         {u.enrollments.map((e, i) => (
-                          <span key={i} className={`badge ${badge(e.status)}`}>
+                          <span key={`c${i}`} className={`badge ${badge(e.status)}`}>
                             {e.title}{e.amount > 0 ? ` · ₹${e.amount}` : ''}
                           </span>
                         ))}
+                        {(u.registrations || []).map((r) => (
+                          <span key={r.registrationId} className={`badge ${badge(r.status)}`} title={`Live program · ${r.status}`}>
+                            🎙 {r.event}{r.amount > 0 ? ` · ₹${r.amount}` : ''}
+                          </span>
+                        ))}
                       </div>
+                    )}
+                  </td>
+                  <td>
+                    {u.role !== 'admin' && (
+                      <button className="btn btn-ghost btn-sm" onClick={() => signOut(u)}>Sign out everywhere</button>
                     )}
                   </td>
                 </tr>

@@ -10,6 +10,7 @@ const Course = require('../models/Course');
 const { protect, adminOnly } = require('../middleware/auth');
 const { liveWindow, courseWindow, issueWindow, payMethod, istFmt } = require('../utils/refundWindow');
 const razorpay = require('./razorpay');
+const { queueSync } = require('../utils/meetGuests');
 
 // ── Refunds ───────────────────────────────────────────────
 // Students ask from their Refunds page (always there, listing every paid
@@ -23,7 +24,7 @@ const UPI_RX = /^[\w.\-]{2,}@[a-zA-Z][\w.\-]*$/;
 // Every paid purchase of a student, with its refund window right now
 async function purchasesOf(userId, now = new Date()) {
   const [regs, enrs, requests] = await Promise.all([
-    Registration.find({ user: userId, status: { $in: ['active', 'rejected', 'refunded'] }, amount: { $gt: 0 } }),
+    Registration.find({ user: userId, status: { $in: ['active', 'rejected', 'refunded', 'cancelled'] }, amount: { $gt: 0 } }),
     Enrollment.find({ user: userId, status: { $in: ['active', 'rejected', 'refunded'] }, amount: { $gt: 0 } }),
     RefundRequest.find({ user: userId }).sort({ createdAt: -1 }),
   ]);
@@ -168,37 +169,55 @@ const loadReq = async (req, res) => {
   return r;
 };
 
-// Approve. Razorpay payments are refunded through Razorpay right away
-// (unless manual: true). UPI requests become "approved" until the money is sent.
-router.put('/:id/approve', protect, adminOnly, asyncHandler(async (req, res) => {
-  const r = await loadReq(req, res); if (!r) return;
-  if (r.status !== 'pending') return res.status(400).json({ message: `Already ${r.status}` });
-  const amount = Math.round(Number(req.body.amount ?? r.amountPaid));
-  if (!(amount > 0) || amount > r.amountPaid) return res.status(400).json({ message: `Amount must be between ₹1 and ₹${r.amountPaid}` });
-  const revoke = req.body.removeAccess ?? (r.type === 'guarantee');
-
+// Settle an agreed refund. Razorpay payments are refunded through Razorpay
+// right away (unless manual: true, i.e. you already did it in the dashboard).
+// UPI ones become "approved" until you send the money. Throws { status } on a
+// problem, before anything is saved. Shared by request approval and by
+// cancelling a registration from the admin panel.
+async function settleRefund(r, { amount, manual, refundRef, removeAccess: revoke }) {
+  amount = Math.round(Number(amount ?? r.amountPaid));
+  if (!(amount > 0) || amount > r.amountPaid) {
+    const e = new Error(`Amount must be between ₹1 and ₹${r.amountPaid}`); e.status = 400; throw e;
+  }
   r.refundAmount = amount;
   r.decidedAt = new Date();
-  if (r.method === 'razorpay' && !req.body.manual) {
+  if (r.method === 'razorpay' && !manual) {
     if (!razorpay.isEnabled() || !/^pay_/.test(r.paymentRef)) {
-      return res.status(400).json({ message: 'Online refund isn’t available for this payment. Refund it from the Razorpay dashboard, then use “Mark refunded”.' });
+      const e = new Error('Online refund isn’t available for this payment. Refund it from the Razorpay dashboard, then use “Mark refunded”.'); e.status = 400; throw e;
     }
     // Razorpay amounts are in paise. Throws on failure, so nothing is saved.
     const rf = await razorpay.rzp('POST', `/payments/${r.paymentRef}/refund`, {
-      amount: amount * 100, speed: 'normal', notes: { reason: `Refund request ${r._id}` },
+      amount: amount * 100, speed: 'normal', notes: { reason: `Refund ${r._id}` },
     });
     r.status = 'refunded';
     r.refundRef = rf.id || '';
     r.refundedAt = new Date();
-  } else if (req.body.manual) {
+  } else if (manual) {
     r.status = 'refunded';
-    r.refundRef = String(req.body.refundRef || '').trim().slice(0, 80);
+    r.refundRef = String(refundRef || '').trim().slice(0, 80);
     r.refundedAt = new Date();
   } else {
     r.status = 'approved';   // UPI: send the money, then mark it paid
   }
   if (revoke) await removeAccess(r);
   await r.save();
+  return r;
+}
+
+router.put('/:id/approve', protect, adminOnly, asyncHandler(async (req, res) => {
+  const r = await loadReq(req, res); if (!r) return;
+  if (r.status !== 'pending') return res.status(400).json({ message: `Already ${r.status}` });
+  const hadAccess = r.registration && await Registration.exists({ _id: r.registration, status: 'active' });
+  try {
+    await settleRefund(r, {
+      amount: req.body.amount, manual: req.body.manual, refundRef: req.body.refundRef,
+      removeAccess: req.body.removeAccess ?? (r.type === 'guarantee'),
+    });
+  } catch (e) {
+    if (e.status === 400) return res.status(400).json({ message: e.message });
+    throw e;
+  }
+  if (hadAccess && r.accessRemoved && r.event) queueSync(r.event);
   res.json(adminView(r));
 }));
 
@@ -227,3 +246,5 @@ router.put('/:id/reject', protect, adminOnly, asyncHandler(async (req, res) => {
 
 module.exports = router;
 module.exports.purchasesOf = purchasesOf;
+module.exports.settleRefund = settleRefund;
+module.exports.adminView = adminView;

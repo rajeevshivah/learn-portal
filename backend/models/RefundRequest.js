@@ -13,7 +13,8 @@ const refundRequestSchema = new mongoose.Schema({
   enrollment:   { type: mongoose.Schema.Types.ObjectId, ref: 'Enrollment', default: null },
   title:        { type: String, default: '' },   // program/course name at the time
 
-  type:   { type: String, enum: ['guarantee', 'payment_issue'], required: true },
+  // admin: refund the admin issued while cancelling a registration (no student request)
+  type:   { type: String, enum: ['guarantee', 'payment_issue', 'admin'], required: true },
   reason: { type: String, default: '', trim: true, maxlength: 1500 },
 
   amountPaid: { type: Number, default: 0 },

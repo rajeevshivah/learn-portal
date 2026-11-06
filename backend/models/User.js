@@ -26,6 +26,13 @@ const userSchema = new mongoose.Schema({
     enum: ['student', 'admin'],
     default: 'student',
   },
+  // Id of the login that is currently allowed. A new Google sign-in replaces it,
+  // which signs out the previous device (when "one device at a time" is on).
+  sessionId: {
+    type: String,
+    default: '',
+    select: false,
+  },
   // track which episodes they accessed
   accessedEpisodes: [{
     type: mongoose.Schema.Types.ObjectId,

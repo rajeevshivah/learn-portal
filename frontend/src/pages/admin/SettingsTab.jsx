@@ -98,11 +98,13 @@ export default function SettingsTab() {
   const [toast, setToast] = useState('');
   const [busy, setBusy] = useState(false);
   const [uploadingQr, setUploadingQr] = useState(false);
+  const [singleDevice, setSingleDevice] = useState(null);   // null until loaded
 
   useEffect(() => {
     axios.get(`${API}/settings`).then(({ data }) => {
       setForm({ upiId: data.upiId || '', upiName: data.upiName || '', paymentNote: data.paymentNote || '' });
       setQrUrl(data.paymentQrUrl || '');
+      setSingleDevice(data.singleDeviceLogin !== false);
     }).catch(() => setToast('Could not load settings'));
   }, []);
 
@@ -144,6 +146,17 @@ export default function SettingsTab() {
     }
   };
 
+  const toggleSingleDevice = async (on) => {
+    setSingleDevice(on);
+    try {
+      await axios.put(`${API}/settings`, { singleDeviceLogin: on });
+      setToast(on ? 'Students now stay signed in on one device at a time' : 'Students can be signed in on several devices');
+    } catch (err) {
+      setSingleDevice(!on);
+      setToast(err.response?.data?.message || 'Could not save');
+    }
+  };
+
   const testLink = form.upiId
     ? `upi://pay?pa=${encodeURIComponent(form.upiId)}&pn=${encodeURIComponent(form.upiName || 'codeWithShivah')}&am=1&cu=INR&tn=Test`
     : '';
@@ -165,6 +178,23 @@ export default function SettingsTab() {
           <textarea className="textarea" value={form.paymentNote} onChange={e => setForm(f => ({ ...f, paymentNote: e.target.value }))} /></div>
 
         <button className="btn btn-primary" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save settings'}</button>
+      </div>
+
+      {/* ── Student sign-in ── */}
+      <div className="card" style={{ marginTop: 16 }}>
+        <h2 style={{ fontSize: 16, marginBottom: 6 }}>Student sign-in</h2>
+        <label className="checkbox-row" style={{ alignItems: 'flex-start' }}>
+          <input type="checkbox" checked={Boolean(singleDevice)} disabled={singleDevice === null}
+            onChange={e => toggleSingleDevice(e.target.checked)} style={{ marginTop: 2 }} />
+          <span>
+            <strong style={{ color: 'var(--text)' }}>One device at a time</strong><br />
+            <span className="small muted">
+              Signing in on a new phone or laptop signs the student out of the previous one, so one paid account
+              can’t be used by two people side by side. Students switching devices just sign in again with Google.
+              Admin accounts are never affected.
+            </span>
+          </span>
+        </label>
       </div>
 
       {/* ── Custom QR upload ── */}

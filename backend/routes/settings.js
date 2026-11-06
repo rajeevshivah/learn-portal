@@ -17,7 +17,9 @@ router.put('/', protect, adminOnly, asyncHandler(async (req, res) => {
   ['upiId', 'upiName', 'paymentNote', 'paymentQrUrl'].forEach(f => {
     if (req.body[f] !== undefined) settings[f] = req.body[f];
   });
+  if (req.body.singleDeviceLogin !== undefined) settings.singleDeviceLogin = Boolean(req.body.singleDeviceLogin);
   await settings.save();
+  require('../middleware/auth').forgetSettings();
   res.json(settings);
 }));
 

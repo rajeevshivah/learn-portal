@@ -241,7 +241,7 @@ export default function TodayTab({ goTo, onChange }) {
                 <div className="today-main">
                   <div className="today-title">{r.user?.name} <span className="today-amt">₹{r.amountPaid}</span></div>
                   <div className="today-meta">
-                    {r.title} · {r.status === 'approved' ? 'approved, UPI refund still to send' : r.type === 'guarantee' ? 'not for me' : 'payment problem'} · {ago(r.createdAt)}
+                    {r.title} · {r.status === 'approved' ? 'approved, UPI refund still to send' : r.type === 'guarantee' ? 'not for me' : r.type === 'admin' ? 'cancelled by you' : 'payment problem'} · {ago(r.createdAt)}
                   </div>
                 </div>
               </div>

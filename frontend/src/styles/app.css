@@ -708,3 +708,29 @@ a.lr-name:hover { color: var(--accent); }
 .lr-link-form .input { flex: 2 1 260px; min-width: 0; padding: 7px 10px; font-size: 13.5px; }
 .lr-link-form .lr-label { flex: 1 1 140px; }
 .lr-tip { margin-top: 10px; line-height: 1.5; }
+
+/* ── Admin: Meet guest list panel ── */
+.meet-panel { margin-top: 14px; padding: 14px 16px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); }
+.meet-head { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; }
+.meet-head p { margin-top: 4px; max-width: 640px; line-height: 1.5; }
+.meet-title { font-weight: 700; font-size: 14.5px; }
+.switch-row { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.switch-row input { accent-color: var(--accent); width: 18px; height: 18px; }
+.meet-warn { margin-top: 12px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--warning); line-height: 1.5; }
+.meet-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-top: 14px; }
+.meet-code { display: inline-block; margin: 2px 6px 0 0; word-break: break-all; }
+.meet-err { color: var(--danger); margin-top: 8px; }
+
+/* ── Admin: move / cancel a seat ── */
+.seat-action { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); }
+.seat-action-title { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+.seat-action > p { line-height: 1.5; }
+.seat-fields { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+.seat-fields .input { flex: 1 1 220px; }
+.seat-fields label .input { flex: none; }
+.seat-refund { margin-top: 10px; }
+.seat-history { list-style: none; margin: 8px 0 0; padding: 0; }
+.seat-history li { padding-left: 12px; border-left: 2px solid var(--border-hi); margin-top: 3px; }
+@media (max-width: 560px) {
+  .meet-head { flex-direction: column; }
+}

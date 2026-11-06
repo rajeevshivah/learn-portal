@@ -10,6 +10,9 @@ const settingsSchema = new mongoose.Schema({
     type: String,
     default: 'After paying, submit the UTR / transaction ID below. Access is unlocked after verification (usually within a few hours).',
   },
+  // Students stay signed in on one device at a time: a new sign-in signs out the
+  // old one, so a shared Google login can't be used side by side. Admins exempt.
+  singleDeviceLogin: { type: Boolean, default: true },
 }, { timestamps: true });
 
 settingsSchema.statics.get = async function () {

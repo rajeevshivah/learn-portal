@@ -189,7 +189,7 @@ export default function Refunds() {
                       <div className="rf-item-main">
                         <div className="rf-item-title">{r.title}</div>
                         <div className="rf-item-meta">
-                          {r.type === 'guarantee' ? 'Not for me' : 'Payment problem'} · sent {ist(r.createdAt)}
+                          {r.type === 'guarantee' ? 'Not for me' : r.type === 'admin' ? 'Seat cancelled by us' : 'Payment problem'} · sent {ist(r.createdAt)}
                         </div>
                       </div>
                       <span className={`rf-st ${STATUS[r.status].cls}`}>{STATUS[r.status].label}</span>
