@@ -100,10 +100,21 @@ const meetCode = (url) => {
 };
 
 // Find the calendar event that carries this program's Meet link.
+// Classes still to come (or running now). Their Meet link is the one to protect;
+// a link used only by finished classes is history.
+const upcoming = (event) => {
+  const now = Date.now();
+  return (event.sessions || []).filter(s => new Date(s.startsAt).getTime() + (s.durationMins || 90) * 60000 > now);
+};
+const currentSessions = (event) => (upcoming(event).length ? upcoming(event) : (event.sessions || []));
+
 async function findByMeetLink(event) {
-  const codes = new Set((event.sessions || []).map(s => meetCode(s.joinUrl)).filter(Boolean));
-  if (!codes.size) throw new Error('No Google Meet link on this program’s classes, so there is no meeting to protect. Add the Meet link to the classes first.');
-  const first = (event.sessions || []).reduce((m, s) => (!m || s.startsAt < m ? s.startsAt : m), null);
+  const sessions = currentSessions(event);
+  // The link of the NEXT class decides; fall back to any link on upcoming classes.
+  const next = [...sessions].sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt)).find(s => meetCode(s.joinUrl));
+  const codes = new Set(next ? [meetCode(next.joinUrl)] : []);
+  if (!codes.size) throw new Error('No Google Meet link on this program’s upcoming classes, so there is no meeting to protect. Add the Meet link to the classes first.');
+  const first = sessions.reduce((m, s) => (!m || s.startsAt < m ? s.startsAt : m), null);
   const timeMin = new Date(new Date(first || Date.now()).getTime() - 3 * 864e5).toISOString();
   let pageToken;
   for (let page = 0; page < 8; page++) {
@@ -204,4 +215,4 @@ async function queueSync(eventId) {
   }
 }
 
-module.exports = { isConfigured, parseEventRef, meetCode, syncEvent, queueSync };
+module.exports = { isConfigured, parseEventRef, meetCode, syncEvent, queueSync, currentSessions };

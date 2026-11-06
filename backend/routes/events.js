@@ -807,7 +807,8 @@ const meetView = async (event) => ({
   connected: meet.isConfigured(),
   enabled: Boolean(event.meetSync?.enabled),
   calendarEventId: event.meetSync?.calendarEventId || '',
-  meetLinks: [...new Set((event.sessions || []).map(s => s.joinUrl).filter(u => meet.meetCode(u)))],
+  // Links on classes still to come: the meeting that matters now
+  meetLinks: [...new Set(meet.currentSessions(event).map(s => s.joinUrl).filter(u => meet.meetCode(u)))],
   confirmed: await Registration.countDocuments({ event: event._id, status: 'active' }),
   guestsManaged: (event.meetSync?.managedEmails || []).length,
   lastSync: event.meetSync?.lastSync?.at ? event.meetSync.lastSync : null,

@@ -344,9 +344,9 @@ function MeetPanel({ ev, setToast }) {
       )}
 
       <div className="meet-grid small">
-        <div><span className="muted">Meet link on classes</span><br />
+        <div><span className="muted">Meet link on upcoming classes</span><br />
           {info.meetLinks.length ? info.meetLinks.map(l => <code key={l} className="meet-code">{l.replace(/^https:\/\//, '')}</code>)
-            : <span style={{ color: 'var(--danger)' }}>None. Add the Google Meet link to the classes.</span>}
+            : <span style={{ color: 'var(--danger)' }}>None. Add the Google Meet link to the upcoming classes.</span>}
         </div>
         <div><span className="muted">Confirmed students</span><br /><strong>{info.confirmed}</strong></div>
         <div><span className="muted">On the invite (added by the portal)</span><br /><strong>{info.guestsManaged}</strong></div>
