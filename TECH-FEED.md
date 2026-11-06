@@ -24,8 +24,10 @@ Admin: Admin → **Tech feed**.
 - Free for everyone: headlines, summaries, hackathons, near-you events.
 - Locked: the AI *Why it matters / Try this* tips and *Who should apply* on events. Locked
   cards show a 🔒 row that opens the pass sheet.
-- Unlocked for: admins; students with a paid program running (or ended < 30 days ago) or an
-  active paid course (switch: "Free for students in a paid program"); anyone with a pass.
+- Unlocked for: admins; anyone with a pass; and (switch: "Free for students…") students whose
+  paid program is still running or whose paid course access hasn't expired. Never lifetime:
+  program access ends when its **last class** ends, plus "keep it for N days" (default 0),
+  even if you never mark the program completed. After that they see the pass offer.
 - Pass: one-time Razorpay payment (UPI / card / netbanking), no auto-renew. Default ₹99 for
   90 days, change it in Admin → Tech feed → Tech Pass. Buying again adds days on top.
 - Untick **Charge for tips** to make tips free for everyone.
@@ -33,10 +35,31 @@ Admin: Admin → **Tech feed**.
 - Payments show in Admin → Payments as "Tech Pass". The Refunds page doesn't handle passes:
   refund one from the Razorpay dashboard if needed.
 
+## Looks & language
+- **English and Hindi only.** Other scripts (Chinese, Russian…) and other Latin languages
+  (Spanish, German…) are dropped when fetched, and the AI flags anything that slips through.
+  Hindi headlines stay in Hindi; the AI summary and tips are in simple English.
+- **Pictures:** the article's own image (from the feed, or the page's preview image, fetched
+  once per article). No image → a drawn cover in the goal's colour with an icon.
+- The AI labels each story (Release, Hiring, Funding, AI, Learn…) and pulls out the key number
+  ("₹500 crore", "40,000 freshers"), shown as a chip and big on the top story's cover.
+- Top story of "For you" is a big card; the rest are rows with a thumbnail. Events show a
+  date tile (red when closing in < 4 days).
+
+## College & company pages
+Admin → Tech feed → Sources → **+ Add source → College / company page**: the link to a page
+where a college or company lists events/fests/hackathons/drives, plus "College, City, State".
+AI reads it once a day and adds the upcoming events (past and undated ones skipped), with the
+college's location, so nearby students see them under **Near you**. Pages that build their
+content with JavaScript can't be read (you'll get a message saying so).
+**Instagram / LinkedIn / WhatsApp:** can't be read automatically (login walls, and their terms
+forbid scraping). Instead: **+ Add event → paste the post text → Fill from text**; AI fills
+the form, you check it and add.
+
 ## Where it comes from
 Built-in sources (switch on/off in Admin → Tech feed → Sources): Hacker News, DEV Community,
 TechCrunch, Analytics India Magazine, Inc42, Google News (tech hiring/placements in India),
-The GitHub Blog, Devpost hackathons. Add any RSS feed there too.
+The GitHub Blog, Devpost hackathons, Tech news in Hindi (Google News). Add any RSS feed there too.
 Unstop / Devfolio / college events: add them with **+ Add event** (or ask Claude).
 Gossip, stock-price and other non-student news is filtered out by the AI.
 

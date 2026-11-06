@@ -70,56 +70,116 @@ export function GoalPicker({ initial, onSaved, onCancel, compact = false }) {
   );
 }
 
-// ── One news item ──
-export function NewsCard({ it, showInsight = true }) {
+// ── Card visuals ──
+const KICK = {
+  release: ['🚀', 'Release'], tool: ['🧰', 'Tool'], ai: ['🤖', 'AI'], hiring: ['💼', 'Hiring'], layoffs: ['📉', 'Layoffs'],
+  funding: ['💰', 'Funding'], startup: ['🌱', 'Startup'], policy: ['🏛️', 'Policy'], security: ['🔐', 'Security'],
+  research: ['🔬', 'Research'], tutorial: ['📘', 'Learn'], career: ['🎯', 'Career'], event: ['🏆', 'Event'], other: ['📰', 'News'], '': ['📰', 'News'],
+};
+// Colour per career goal, so a student's feed has a consistent look
+const HUES = {
+  'data-science': 205, 'ai-ml': 265, web: 190, mobile: 160, 'dsa-placements': 28, 'cloud-devops': 215, cybersecurity: 350,
+  'data-engineering': 175, java: 15, python: 50, blockchain: 290, 'ui-ux': 320, 'game-dev': 140, 'embedded-iot': 95,
+  testing: 120, startups: 40, general: 225,
+};
+const hueOf = (it) => HUES[(it.tracks || []).find(t => HUES[t]) || 'general'];
+export const kickerOf = (it) => KICK[it.kicker] || KICK[''];
+
+// Drawn cover when the article has no picture (or it fails to load)
+function Cover({ it, big }) {
+  const h = hueOf(it);
+  const [emoji, label] = kickerOf(it);
   return (
-    <article className={`tf-news ${it.pinned ? 'is-pinned' : ''}`}>
-      <div className="tf-meta">
-        {it.pinned && <span className="tf-pin">Pinned</span>}
-        <span>{it.source}</span><span aria-hidden="true">·</span><span>{ago(it.publishedAt)}</span>
-      </div>
-      <a className="tf-title" href={it.url} target="_blank" rel="noreferrer">{it.title}</a>
-      {it.summary && <p className="tf-summary">{it.summary}</p>}
+    <div className={`tx-cover ${big ? 'big' : ''}`} aria-hidden="true"
+      style={{ background: `radial-gradient(120% 90% at 100% 0%, hsl(${h} 80% 55% / .55), transparent 60%), linear-gradient(135deg, hsl(${h} 55% 22%), hsl(${(h + 40) % 360} 50% 12%))` }}>
+      <span className="tx-cover-emoji">{emoji}</span>
+      {big && it.stat ? <span className="tx-cover-stat">{it.stat}</span> : big && <span className="tx-cover-label">{label}</span>}
+    </div>
+  );
+}
+function Thumb({ it, big }) {
+  const [bad, setBad] = useState(false);
+  if (!it.imageUrl || bad) return <Cover it={it} big={big} />;
+  return (
+    <div className={`tx-img ${big ? 'big' : ''}`}>
+      <img src={it.imageUrl} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setBad(true)} />
+    </div>
+  );
+}
+const Kicker = ({ it }) => {
+  const [emoji, label] = kickerOf(it);
+  return <span className="tx-kicker" style={{ '--h': hueOf(it) }}>{emoji} {label}</span>;
+};
+const unlock = () => window.dispatchEvent(new CustomEvent('tech-unlock'));
+
+// ── One news item. variant: 'hero' (big picture on top) | 'row' (thumbnail on the right) ──
+export function NewsCard({ it, showInsight = true, variant = 'row' }) {
+  const hero = variant === 'hero';
+  return (
+    <article className={`tf-news tx-news ${hero ? 'is-hero' : ''} ${it.pinned ? 'is-pinned' : ''}`}>
+      <a className="tx-news-link" href={it.url} target="_blank" rel="noreferrer">
+        {hero && <Thumb it={it} big />}
+        <div className="tx-news-body">
+          <div className="tx-news-top">
+            {it.pinned ? <span className="tx-kicker pin">📌 Pinned</span> : <Kicker it={it} />}
+            {!hero && it.stat && <span className="tx-stat">{it.stat}</span>}
+          </div>
+          <h3 className="tx-news-title" lang={it.lang === 'hi' ? 'hi' : undefined}>{it.title}</h3>
+          {(hero || !showInsight) && it.summary && <p className="tf-summary">{it.summary}</p>}
+          <div className="tf-meta"><span>{it.source}</span><span aria-hidden="true">·</span><span>{ago(it.publishedAt)}</span></div>
+        </div>
+        {!hero && <Thumb it={it} />}
+      </a>
       {showInsight && it.insight?.locked && (
-        <button type="button" className="tf-locked" onClick={() => window.dispatchEvent(new CustomEvent('tech-unlock'))}>
+        <button type="button" className="tf-locked" onClick={unlock}>
           <span aria-hidden="true">🔒</span> What this means for {it.insight.label}, and what to do
         </button>
       )}
       {showInsight && it.insight && !it.insight.locked && (it.insight.why || it.insight.todo) && (
-        <div className="tf-insight">
-          <span className="tf-insight-for">For {it.insight.label}</span>
-          {it.insight.why && <p><strong>Why it matters:</strong> {it.insight.why}</p>}
-          {it.insight.todo && <p><strong>Try this:</strong> {it.insight.todo}</p>}
+        <div className="tx-insight">
+          {it.insight.why && <div className="tx-ins-row"><span className="tx-ins-ic" aria-hidden="true">💡</span><p><strong>Why it matters</strong>{it.insight.why}</p></div>}
+          {it.insight.todo && <div className="tx-ins-row"><span className="tx-ins-ic" aria-hidden="true">✅</span><p><strong>Try this</strong>{it.insight.todo}</p></div>}
+          <span className="tx-ins-for">For {it.insight.label}</span>
         </div>
       )}
     </article>
   );
 }
 
-// ── One hackathon / event ──
+// ── One hackathon / event: date tile on the left ──
 export function EventCard({ it, compact = false }) {
   const closes = it.deadline || it.endsAt;
   const soon = closes && new Date(closes) - Date.now() < 4 * 864e5;
+  const day = it.startsAt || closes;
+  const d = day ? new Date(day) : null;
   return (
-    <article className={`tf-event ${compact ? 'tf-event-compact' : ''}`}>
-      <div className="tf-event-top">
-        {closes && <span className={`tf-deadline ${soon ? 'soon' : ''}`}>{closesIn(closes)}</span>}
-        {it.mode && <span className="tf-tag">{it.mode === 'in-person' ? (it.location || 'In person') : it.mode === 'online' ? 'Online' : `Hybrid${it.location ? ` · ${it.location}` : ''}`}</span>}
-      </div>
-      <a className="tf-title" href={it.url} target="_blank" rel="noreferrer">{it.title}</a>
-      <div className="tf-meta">
-        {it.near && <span className="tf-near">Near you ·</span>}
-        {it.organizer && <span>{it.organizer}</span>}
-        {it.startsAt && <span>{it.organizer ? '· ' : ''}{fmtDate(it.startsAt)}{it.endsAt && fmtDate(it.endsAt) !== fmtDate(it.startsAt) ? ` – ${fmtDate(it.endsAt)}` : ''}</span>}
-        {it.prize && <span className="tf-prize">· {it.prize}</span>}
-      </div>
+    <article className={`tf-event tx-event ${compact ? 'tf-event-compact' : ''}`}>
+      <a className="tx-event-link" href={it.url} target="_blank" rel="noreferrer">
+        <div className={`tx-date-tile ${soon ? 'soon' : ''}`} style={{ '--h': hueOf(it) }}>
+          {it.imageUrl && <img src={it.imageUrl} alt="" loading="lazy" referrerPolicy="no-referrer" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
+          {d ? <><span className="m">{d.toLocaleDateString('en-IN', { month: 'short' })}</span><span className="d">{d.getDate()}</span></> : <span className="d">🏆</span>}
+          {it.startsAt && <span className="w">starts</span>}
+        </div>
+        <div className="tx-event-body">
+          <div className="tf-event-top">
+            {closes && <span className={`tf-deadline ${soon ? 'soon' : ''}`}>{closesIn(closes)}</span>}
+            {it.mode && <span className="tf-tag">{it.mode === 'online' ? '🌐 Online' : `📍 ${it.location || (it.mode === 'hybrid' ? 'Hybrid' : 'In person')}`}</span>}
+          </div>
+          <h3 className="tx-news-title">{it.title}</h3>
+          <div className="tf-meta">
+            {it.near && <span className="tf-near">Near you ·</span>}
+            {it.organizer && <span>{it.organizer}</span>}
+            {it.prize && <span className="tf-prize">· 🏅 {it.prize}</span>}
+          </div>
+          {!compact && !it.insight?.todo && it.summary && <p className="tf-summary">{it.summary}</p>}
+        </div>
+      </a>
       {!compact && it.insight?.locked && (
-        <button type="button" className="tf-locked" onClick={() => window.dispatchEvent(new CustomEvent('tech-unlock'))}>
+        <button type="button" className="tf-locked" onClick={unlock}>
           <span aria-hidden="true">🔒</span> Who should apply, for {it.insight.label}
         </button>
       )}
-      {!compact && it.insight?.todo && <p className="tf-summary"><strong>Who should apply:</strong> {it.insight.todo}</p>}
-      {!compact && !it.insight?.todo && it.summary && <p className="tf-summary">{it.summary}</p>}
+      {!compact && it.insight?.todo && <div className="tx-insight"><div className="tx-ins-row"><span className="tx-ins-ic" aria-hidden="true">🙋</span><p><strong>Who should apply</strong>{it.insight.todo}</p></div></div>}
     </article>
   );
 }

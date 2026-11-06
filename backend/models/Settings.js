@@ -23,6 +23,7 @@ const settingsSchema = new mongoose.Schema({
     price:       { type: Number, default: 99 },
     days:        { type: Number, default: 90 },
     freeForPaid: { type: Boolean, default: true },
+    paidGraceDays: { type: Number, default: 0 },   // days after a program's last class that its students keep the tips
   },
 
   // Tech feed bookkeeping (utils/techFeed.js)

@@ -185,7 +185,7 @@ export default function Tech() {
           </>
         ) : (
           <div className="tx-list">
-            {items.map(it => <NewsCard key={it._id} it={it} showInsight={tab === 'mine' || Boolean(track)} />)}
+            {items.map((it, i) => <NewsCard key={it._id} it={it} variant={i === 0 ? 'hero' : 'row'} showInsight={tab === 'mine' || Boolean(track)} />)}
           </div>
         )}
 

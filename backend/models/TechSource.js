@@ -3,8 +3,10 @@ const mongoose = require('mongoose');
 // Where the tech feed comes from. Admin can switch sources on/off or add RSS feeds.
 const techSourceSchema = new mongoose.Schema({
   name:    { type: String, required: true, trim: true },
-  type:    { type: String, enum: ['rss', 'hn', 'devto', 'devpost'], required: true },
-  url:     { type: String, default: '' },        // feed URL for 'rss'
+  // page = a college / company events page, read by AI once a day
+  type:    { type: String, enum: ['rss', 'hn', 'devto', 'devpost', 'page'], required: true },
+  url:     { type: String, default: '' },        // feed URL for 'rss', page URL for 'page'
+  location:{ type: String, default: '' },        // 'page': where its events happen, e.g. "IIT BHU, Varanasi, Uttar Pradesh"
   kind:    { type: String, enum: ['news', 'event'], default: 'news' },
   // Optional: tracks every item from this source belongs to (e.g. an AI-only feed)
   tracks:  { type: [String], default: [] },

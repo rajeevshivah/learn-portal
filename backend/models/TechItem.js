@@ -15,6 +15,10 @@ const techItemSchema = new mongoose.Schema({
   sourceId:{ type: mongoose.Schema.Types.ObjectId, ref: 'TechSource', default: null },
   summary: { type: String, default: '' },        // 1–2 lines
   imageUrl:{ type: String, default: '' },
+  imgTried:{ type: Boolean, default: false },    // looked for the article's preview image
+  lang:    { type: String, default: 'en' },      // 'en' | 'hi' | 'other' (other = never shown)
+  kicker:  { type: String, default: '' },        // AI label for the card: release, hiring, funding…
+  stat:    { type: String, default: '' },        // AI: the key number/fact, e.g. "₹500 crore", "3x faster"
   publishedAt: { type: Date, default: Date.now },
 
   tracks:     { type: [String], default: [] },   // career goals it's relevant to; 'general' = everyone

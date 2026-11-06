@@ -15,9 +15,13 @@ const passSettings = (s) => ({
   price: s.techPass?.price ?? 99,
   days: s.techPass?.days ?? 90,
   freeForPaid: s.techPass?.freeForPaid !== false,
+  paidGraceDays: s.techPass?.paidGraceDays ?? 0,
 });
+const fmtD = (d) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
 
-async function paidStudentReason(userId) {
+// A paid program counts until its last class ends (+ grace days), whether or not
+// it has been marked completed. Never for life.
+async function paidStudentReason(userId, graceDays = 0) {
   const now = Date.now();
   const regs = await Registration.find({ user: userId, status: 'active', amount: { $gt: 0 } })
     .populate('event', 'title isCompleted sessions.startsAt sessions.durationMins');
@@ -25,11 +29,13 @@ async function paidStudentReason(userId) {
     const e = r.event;
     if (!e) continue;
     const last = (e.sessions || []).reduce((m, s) => Math.max(m, new Date(s.startsAt).getTime() + (s.durationMins || 60) * 60000), 0);
-    if (!e.isCompleted || last > now - 30 * 864e5) return `Included with ${e.title}`;
+    if (!last) { if (!e.isCompleted) return `Included with ${e.title}`; continue; }   // classes not scheduled yet
+    const until = last + graceDays * 864e5;
+    if (until > now) return `Included with ${e.title} till ${fmtD(until)}`;
   }
   const enr = await Enrollment.findOne({ user: userId, status: 'active', amount: { $gt: 0 }, $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }] })
     .populate('course', 'title');
-  if (enr) return `Included with ${enr.course?.title || 'your course'}`;
+  if (enr) return `Included with ${enr.course?.title || 'your course'}${enr.expiresAt ? ` till ${fmtD(enr.expiresAt)}` : ''}`;
   return '';
 }
 
@@ -39,7 +45,7 @@ async function techAccess(user) {
   if (user.role === 'admin') return { full: true, reason: 'admin', label: 'Admin', pass };
   if (!pass.enabled) return { full: true, reason: 'free', label: 'Free for everyone', pass };
   if (pass.freeForPaid) {
-    const label = await paidStudentReason(user._id);
+    const label = await paidStudentReason(user._id, pass.paidGraceDays);
     if (label) return { full: true, reason: 'included', label, pass };
   }
   const latest = await TechPass.findOne({ user: user._id, expiresAt: { $gt: new Date() } }).sort({ expiresAt: -1 });

@@ -38,12 +38,55 @@ const DEFAULT_SOURCES = [
     url: 'https://news.google.com/rss/search?q=(tech+hiring+OR+placements+OR+freshers+OR+layoffs)+India&hl=en-IN&gl=IN&ceid=IN:en' },
   { name: 'The GitHub Blog', type: 'rss', url: 'https://github.blog/feed/', kind: 'news', maxItems: 8 },
   { name: 'Devpost hackathons', type: 'devpost', kind: 'event', maxItems: 40 },
+  { name: 'Tech news in Hindi (Google News)', type: 'rss', kind: 'news', maxItems: 10,
+    url: `https://news.google.com/rss/search?q=${encodeURIComponent('टेक्नोलॉजी OR आर्टिफिशियल इंटेलिजेंस OR स्टार्टअप OR आईटी नौकरी')}&hl=hi&gl=IN&ceid=IN:hi` },
 ];
 
-async function ensureSources() {
-  if (await TechSource.estimatedDocumentCount() > 0) return;
-  await TechSource.insertMany(DEFAULT_SOURCES.map(s => ({ ...s, builtIn: true })));
+// Built-in sources can't be deleted, so any default missing by name is new: add it.
+// One at a time (two requests at once would both add the same source), and clear
+// any duplicate built-ins an older version may have left.
+let ensuring = null;
+function ensureSources() {
+  if (!ensuring) ensuring = (async () => {
+    const all = await TechSource.find({ builtIn: true }).sort({ createdAt: 1 }).select('name');
+    const byName = {};
+    for (const s of all) (byName[s.name] = byName[s.name] || []).push(s._id);
+    const extra = Object.values(byName).flatMap(ids => ids.slice(1));
+    if (extra.length) await TechSource.deleteMany({ _id: { $in: extra } });
+    for (const d of DEFAULT_SOURCES.filter(x => !byName[x.name])) {
+      await TechSource.updateOne({ name: d.name, builtIn: true }, { $setOnInsert: { ...d, builtIn: true } }, { upsert: true });
+    }
+  })().finally(() => { ensuring = null; });
+  return ensuring;
 }
+
+// ── Language: English and Hindi only ──
+const LATIN = /[A-Za-z\u00C0-\u024F]/g, DEVA = /[\u0900-\u097F]/g, LETTER = /\p{L}/gu;
+const NOT_EN = /\b(el|los|las|del|para|una|não|uma|les|des|pour|und|der|das|nicht|eine|della|por|wie|ist|sur|dans|como|também|cómo|qué|avec|sobre|desde|mais|zijn|het|een|och|med|för|jest|się|nie|bir|ve|için|bu)\b/gi;
+const EN = /\b(the|and|of|to|is|for|with|on|how|you|your|what|why|new|from|this|are|was|will|can)\b/gi;
+function langOf(text) {
+  const t = String(text || '');
+  const letters = (t.match(LETTER) || []).length;
+  if (!letters) return 'en';
+  const deva = (t.match(DEVA) || []).length, latin = (t.match(LATIN) || []).length;
+  if ((deva + latin) / letters < 0.85) return 'other';          // Chinese, Russian, Arabic, Japanese…
+  if (deva > latin) return 'hi';
+  const other = (t.match(NOT_EN) || []).length, en = (t.match(EN) || []).length;
+  return other >= 2 && other > en ? 'other' : 'en';             // Spanish, Portuguese, German…
+}
+const langAllowed = (it) => it.lang !== 'other' && langOf(`${it.title} ${it.summary}`) !== 'other';
+
+// ── Images ──
+function cleanImg(u, base) {
+  if (!u) return '';
+  try {
+    const url = new URL(String(u).replace(/&amp;/g, '&'), base);
+    if (url.protocol === 'http:') url.protocol = 'https:';
+    if (url.protocol !== 'https:' || /\.(svg|ico)(\?|$)/i.test(url.pathname) || /(pixel|tracking|feeds\.feedburner|gravatar|1x1)/i.test(url.href)) return '';
+    return url.href;
+  } catch { return ''; }
+}
+const firstImgIn = (html) => (String(html || '').match(/<img[^>]+src=["']([^"']+)["']/i) || [])[1] || '';
 
 // ── Small helpers ──
 const UA = 'learn.rajeevshivah.me tech-feed (+https://learn.rajeevshivah.me)';
@@ -85,7 +128,7 @@ async function fromRss(src) {
       title, url: link,
       summary: clip(stripHtml(textOf(it.description) || textOf(it['content:encoded'])), 300),
       publishedAt: new Date(textOf(it.pubDate) || textOf(it['dc:date']) || Date.now()),
-      imageUrl: media?.['@url'] || '',
+      imageUrl: cleanImg(media?.['@url'] || asArray(it['media:group']?.['media:content'])[0]?.['@url'] || firstImgIn(textOf(it['content:encoded']) || textOf(it.description)), link),
       sourceLabel: publisher ? `${publisher} (via ${src.name.replace(/ \(Google News\)$/, '')})` : '',
     });
   }
@@ -96,7 +139,7 @@ async function fromRss(src) {
       title: stripHtml(textOf(it.title)), url: link,
       summary: clip(stripHtml(textOf(it.summary) || textOf(it.content)), 300),
       publishedAt: new Date(textOf(it.published) || textOf(it.updated) || Date.now()),
-      imageUrl: '',
+      imageUrl: cleanImg(asArray(it['media:thumbnail'])[0]?.['@url'] || firstImgIn(textOf(it.content) || textOf(it.summary)), link),
     });
   }
   return out;
@@ -119,7 +162,7 @@ async function fromDevto() {
     title: a.title, url: a.url,
     summary: clip(stripHtml(a.description || ''), 300),
     publishedAt: new Date(a.published_at || Date.now()),
-    imageUrl: a.cover_image || '',
+    imageUrl: cleanImg(a.cover_image || a.social_image || ''),
     tags: a.tag_list || [],
   }));
 }
@@ -156,7 +199,96 @@ async function fromDevpost() {
   });
 }
 
-const FETCHERS = { rss: fromRss, hn: fromHn, devto: fromDevto, devpost: fromDevpost };
+// A college / company events page. Pages are all different, so the AI reads the page
+// text (with its links) and pulls out upcoming events students can join.
+function pageText(html, base) {
+  let h = String(html || '').slice(0, 600000)
+    .replace(/<(script|style|noscript|svg|head|iframe)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ');
+  h = h.replace(/<a\b[^>]*href=["']([^"'#][^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi, (m, href, inner) => {
+    const t = stripHtml(inner);
+    let abs = ''; try { abs = new URL(href.replace(/&amp;/g, '&'), base).href; } catch { /* bad link */ }
+    return t && abs && /^https?:/.test(abs) ? ` ${t} [${abs}] ` : ` ${t} `;
+  });
+  h = h.replace(/<\/(p|div|li|tr|h\d|br|section|article)>|<br\s*\/?>/gi, '\n');
+  return h.split('\n').map(stripHtml).filter(Boolean).join('\n').slice(0, 14000);
+}
+const ymd = (s, endOfDay) => {
+  const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const d = new Date(`${m[1]}-${m[2]}-${m[3]}T${endOfDay ? '23:59:00' : '09:00:00'}+05:30`);
+  return isNaN(d) ? null : d;
+};
+const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9\u0900-\u097F]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
+
+async function fromPage(src) {
+  if (!aiEnabled()) throw new Error('Reading college/company pages needs ANTHROPIC_API_KEY');
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), 20000);
+  let html;
+  try {
+    const res = await fetch(src.url, { headers: { 'User-Agent': UA, Accept: 'text/html,*/*' }, signal: ctl.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    html = await res.text();
+  } catch (e) { throw new Error(e.name === 'AbortError' ? 'timed out' : e.message); }
+  finally { clearTimeout(t); }
+  const text = pageText(html, src.url);
+  if (text.length < 80) throw new Error('The page had almost no text (it may load its content with JavaScript)');
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  const prompt = `Today is ${today}. Below is the text of the web page ${src.url} ("${src.name}"${src.location ? `, located in ${src.location}` : ''}). Links appear as [url] after their text.
+
+Find upcoming events that engineering/computer students can join or apply to: hackathons, coding contests, tech fests, workshops, bootcamps, seminars/webinars, placement or internship drives. Skip past events, exam schedules, holidays, admissions, tenders, and anything not about tech or careers.
+
+Reply with only a JSON array (max 15, [] if none):
+[{"title": short name, "url": the most specific link for it from the page or "", "startsAt": "YYYY-MM-DD" or "", "deadline": registration last date "YYYY-MM-DD" or "", "mode": "online"|"in-person"|"hybrid", "location": venue and city if stated or "", "organizer": who runs it or "", "prize": prize if stated or "", "summary": max 25 words, what it is and who it is for}]
+
+Page text:
+${text}`;
+  const out = firstJson(await claude(TAG_SYSTEM, prompt, 2500), '[', ']');
+  return asArray(out).filter(e => e && e.title).map(e => {
+    const startsAt = ymd(e.startsAt), deadline = ymd(e.deadline, true) || (startsAt ? new Date(startsAt.getTime() + 15 * 3600e3) : null);
+    const own = okUrl(e.url) && e.url.split('#')[0] !== src.url.split('#')[0];
+    return {
+      title: clip(stripHtml(e.title), 200),
+      url: own ? e.url : `${src.url.split('#')[0]}#${slug(e.title)}`,
+      summary: clip(stripHtml(e.summary || ''), 300),
+      publishedAt: new Date(), startsAt, deadline,
+      mode: ['online', 'in-person', 'hybrid'].includes(e.mode) ? e.mode : 'in-person',
+      location: e.mode === 'online' ? 'Online' : clip(stripHtml(e.location || ''), 120) || src.location || '',
+      organizer: clip(stripHtml(e.organizer || ''), 80) || src.name,
+      prize: clip(stripHtml(e.prize || ''), 120),
+    };
+  }).filter(e => (e.deadline || e.startsAt) && (e.deadline || e.startsAt) > Date.now());   // must have a date in the future
+}
+const PAGE_EVERY_HOURS = 24;
+
+// Articles without a picture: use the page's own preview image (og:image), a few per refresh
+async function fillImages(limit = 25) {
+  const items = await TechItem.find({ kind: 'news', imageUrl: '', imgTried: false, hidden: false, url: { $not: /news\.google\.com|news\.ycombinator\.com/ } })
+    .sort({ publishedAt: -1 }).limit(limit);
+  let found = 0;
+  const one = async (it) => {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 6000);
+    try {
+      const res = await fetch(it.url, { headers: { 'User-Agent': UA, Accept: 'text/html' }, signal: ctl.signal, redirect: 'follow' });
+      if (res.ok && /html/i.test(res.headers.get('content-type') || 'text/html')) {
+        const head = (await res.text()).slice(0, 200000);
+        const m = head.match(/<meta[^>]+(?:property|name)=["'](?:og:image(?::secure_url)?|twitter:image(?::src)?)["'][^>]*content=["']([^"']+)["']/i)
+          || head.match(/<meta[^>]+content=["']([^"']+)["'][^>]*(?:property|name)=["'](?:og:image|twitter:image)["']/i);
+        const img = cleanImg(m?.[1], res.url || it.url);
+        if (img) { it.imageUrl = img; found++; }
+      }
+    } catch { /* site slow or blocked: the card gets a drawn cover */ }
+    finally { clearTimeout(t); }
+    it.imgTried = true;
+    await it.save();
+  };
+  for (let i = 0; i < items.length; i += 5) await Promise.all(items.slice(i, i + 5).map(one));
+  return found;
+}
+
+const FETCHERS = { rss: fromRss, hn: fromHn, devto: fromDevto, devpost: fromDevpost, page: fromPage };
 
 // ── Refresh ──
 let running = null;
@@ -167,6 +299,7 @@ async function refreshNow() {
   const sources = await TechSource.find({ enabled: true });
   let added = 0;
   for (const src of sources) {
+    if (src.type === 'page' && src.lastRun?.ok && src.lastRun.at && Date.now() - src.lastRun.at < PAGE_EVERY_HOURS * 3600e3) continue;
     try {
       const raw = (await FETCHERS[src.type](src))
         .filter(x => x.title && okUrl(x.url))
@@ -177,12 +310,14 @@ async function refreshNow() {
       for (const r of raw) {
         if (known.has(r.url)) continue;
         if (src.kind === 'news' && r.publishedAt < Date.now() - KEEP_NEWS_DAYS * 864e5) continue;
+        const lang = langOf(`${r.title} ${r.summary}`);
+        if (lang === 'other') continue;                   // English and Hindi only
         const text = `${r.title} ${r.summary} ${(r.tags || []).join(' ')}`;
         const tracks = src.tracks?.length ? [...src.tracks] : tracksByKeywords(text);
         try {
           await TechItem.create({
             kind: src.kind, title: clip(r.title, 300), url: r.url, source: r.sourceLabel || src.name, sourceId: src._id,
-            summary: r.summary || '', imageUrl: r.imageUrl || '', publishedAt: isNaN(r.publishedAt) ? new Date() : r.publishedAt,
+            summary: r.summary || '', imageUrl: r.imageUrl || '', imgTried: Boolean(r.imageUrl), lang, publishedAt: isNaN(r.publishedAt) ? new Date() : r.publishedAt,
             tracks, importance: r.popularity >= 300 ? 4 : r.popularity >= 120 ? 3 : 2,
             startsAt: r.startsAt || null, endsAt: r.endsAt || null, deadline: r.deadline || null,
             mode: r.mode || '', location: r.location || '', prize: clip(r.prize || '', 120), organizer: r.organizer || '',
@@ -203,10 +338,11 @@ async function refreshNow() {
   await TechItem.deleteMany({ kind: 'event', manual: false, $or: [{ deadline: { $lt: new Date(Date.now() - 3 * 864e5) } }, { deadline: null, endsAt: { $lt: new Date(Date.now() - 3 * 864e5) } }] });
 
   const ai = await tagWithAI();
+  const images = await fillImages().catch(() => 0);
   const s = await settingsMeta();
   s.techLastRefreshAt = new Date();
   await s.save();
-  return { added, ai };
+  return { added, ai, images };
 }
 
 function refresh() {
@@ -240,6 +376,7 @@ const firstJson = (text, open, close) => {
   return JSON.parse(text.slice(a, b + 1));
 };
 
+const KICKERS = ['release', 'tool', 'ai', 'hiring', 'layoffs', 'funding', 'startup', 'policy', 'security', 'research', 'tutorial', 'career', 'event', 'other'];
 const TRACK_LIST = TRACKS.map(t => `${t.id}: ${t.label}`).join('\n');
 const TAG_SYSTEM = `You curate a tech news feed for Indian engineering students and freshers (B.Tech/BCA/MCA, 18–24) who are learning to code and preparing for jobs. Be concrete, plain and honest. No hype, no emojis.`;
 
@@ -250,7 +387,10 @@ async function tagBatch(items) {
 {"i": index,
  "tracks": up to 3 goal ids it really matters to, or ["general"] if every tech student should know it, or [] if it is irrelevant to students (gossip, stock prices, US politics, product deals),
  "importance": 1-5 (5 = changes what students should learn or affects jobs/hiring broadly; 1 = trivia),
- "summary": one plain sentence, max 25 words, saying what happened,
+ "summary": one plain sentence in English, max 25 words, saying what happened (translate if the item is in Hindi),
+ "lang": language of the item's title: "en", "hi", or "other",
+ "kicker": one label for the card: release | tool | ai | hiring | layoffs | funding | startup | policy | security | research | tutorial | career | event | other,
+ "stat": the single most striking number or fact in it, max 4 words (e.g. "₹1,500 crore", "10,000 freshers", "2x faster"), or "" if none,
  "insights": one entry per goal in "tracks" (use "general" when tracks is ["general"]): {"track": id, "why": max 18 words on why it matters to a student on that goal, "todo": max 18 words, one concrete thing they can do this week}}
 For hackathons, "todo" should say who should apply and what to build or prepare.
 Reply with only a JSON array.`;
@@ -283,6 +423,9 @@ async function tagWithAI() {
         it.tracks = own.length ? [...new Set([...own, ...tracks.filter(t => t !== 'general')])].slice(0, 4) : tracks;
         it.importance = Math.min(5, Math.max(1, Math.round(Number(r.importance) || 2)));
         if (r.summary) it.summary = clip(String(r.summary), 220);
+        if (['en', 'hi', 'other'].includes(r.lang)) it.lang = r.lang;
+        it.kicker = KICKERS.includes(r.kicker) ? r.kicker : (it.kind === 'event' ? 'event' : 'other');
+        it.stat = clip(String(r.stat || '').trim(), 32);
         it.insights = asArray(r.insights)
           .filter(x => x && (x.track === 'general' || TRACK_IDS.includes(x.track)))
           .map(x => ({ track: x.track, why: clip(String(x.why || ''), 160), todo: clip(String(x.todo || ''), 160) }))
@@ -335,7 +478,7 @@ function shapeForStudent(it, goal) {
   const insight = it.insights.find(x => mine.includes(x.track)) || it.insights.find(x => x.track === 'general') || it.insights[0] || null;
   return {
     _id: it._id, kind: it.kind, title: it.title, url: it.url, source: it.source, summary: it.summary,
-    imageUrl: it.imageUrl, publishedAt: it.publishedAt, tracks: it.tracks, trackLabels: it.tracks.filter(t => t !== 'general').map(labelOf),
+    imageUrl: it.imageUrl, kicker: it.kicker || (it.kind === 'event' ? 'event' : ''), stat: it.stat || '', lang: it.lang, publishedAt: it.publishedAt, tracks: it.tracks, trackLabels: it.tracks.filter(t => t !== 'general').map(labelOf),
     importance: it.importance, pinned: it.pinned,
     insight: insight ? { track: insight.track, label: insight.track === 'general' ? 'Everyone in tech' : labelOf(insight.track), why: insight.why, todo: insight.todo } : null,
     startsAt: it.startsAt, endsAt: it.endsAt, deadline: it.deadline, mode: it.mode, location: it.location, prize: it.prize, organizer: it.organizer,
@@ -363,7 +506,8 @@ async function forStudent(goal, { scope = 'mine', kind = 'news', track = '', lim
   else base.publishedAt = { $gte: new Date(Date.now() - KEEP_NEWS_DAYS * 864e5) };
   const items = (await TechItem.find(base).sort(kind === 'event' ? { deadline: 1 } : { publishedAt: -1 }).limit(400))
     .filter(it => kind !== 'news' || it.aiDone || !aiEnabled() || it.manual || it.tracks.length)   // wait for AI tagging when it's on
-    .filter(it => !(it.aiDone && it.tracks.length === 0 && !it.pinned && !it.manual));             // AI said: not for students
+    .filter(it => !(it.aiDone && it.tracks.length === 0 && !it.pinned && !it.manual))              // AI said: not for students
+    .filter(it => it.manual || langAllowed(it));                                                    // English and Hindi only
 
   let list = items;
   if (track) list = list.filter(it => it.tracks.includes(track));
@@ -378,8 +522,23 @@ async function forStudent(goal, { scope = 'mine', kind = 'news', track = '', lim
   return { total: list.length, items: list.slice(skip, skip + limit).map(it => shapeForStudent(it, goal)) };
 }
 
+// Turn a pasted announcement (Instagram / WhatsApp / LinkedIn post, email) into an event draft
+async function extractEvent(text, url = '') {
+  if (!aiEnabled()) throw new Error('Needs ANTHROPIC_API_KEY');
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  const out = firstJson(await claude(TAG_SYSTEM, `Today is ${today}. Here is an announcement someone pasted${url ? ` (from ${url})` : ''}:\n\n${clip(String(text), 6000)}\n\nReply with only JSON for the event in it: {"title": short name, "url": registration/info link found in the text or "", "startsAt": "YYYY-MM-DD" or "", "deadline": last date to register "YYYY-MM-DD" or "", "mode": "online"|"in-person"|"hybrid", "location": "Venue, City, State" or "", "organizer": "", "prize": "", "summary": max 25 words, who should apply and what to build or prepare, "tracks": up to 3 ids from:\n${TRACK_LIST}}`, 800), '{', '}');
+  return {
+    title: clip(stripHtml(out.title || ''), 200), url: okUrl(out.url) ? out.url : (okUrl(url) ? url : ''),
+    startsAt: out.startsAt || '', deadline: out.deadline || '',
+    mode: ['online', 'in-person', 'hybrid'].includes(out.mode) ? out.mode : 'online',
+    location: clip(stripHtml(out.location || ''), 120), organizer: clip(stripHtml(out.organizer || ''), 80),
+    prize: clip(stripHtml(out.prize || ''), 120), summary: clip(stripHtml(out.summary || ''), 300),
+    tracks: asArray(out.tracks).filter(t => TRACK_IDS.includes(t)).slice(0, 3),
+  };
+}
+
 module.exports = {
-  isNear,
+  isNear, langOf, pageText, extractEvent, fillImages,
   refresh, refreshIfStale, isRefreshing: () => Boolean(running), aiEnabled, mapCustomGoal, forStudent,
   ensureSources, parseDevpostDates, FETCHERS, DEFAULT_SOURCES, REFRESH_HOURS,
 };

@@ -55,12 +55,23 @@ export default function TechTab() {
   };
   const addSource = async () => {
     setBusy(true);
-    try { await axios.post(`${API}/tech/admin/sources`, src); setToast('Feed added. It is used from the next refresh.'); setSrc(null); loadStatus(); }
+    try { const { data } = await axios.post(`${API}/tech/admin/sources`, src); setToast(data.message || 'Feed added. It is used from the next refresh.'); setSrc(null); loadStatus(); }
     catch (e) { err(e); } finally { setBusy(false); }
   };
   const removeSource = async (s) => {
     if (!window.confirm(`Remove “${s.name}”?`)) return;
     try { await axios.delete(`${API}/tech/admin/sources/${s._id}`); loadStatus(); } catch (e) { err(e); }
+  };
+  const [paste, setPaste] = useState('');
+  const fillFromPaste = async () => {
+    setBusy(true);
+    try {
+      const { data } = await axios.post(`${API}/tech/admin/items/extract`, { text: paste, url: ev.url });
+      const dt = (d, t) => (d ? `${d}T${t}` : '');
+      setEv({ ...ev, ...Object.fromEntries(Object.entries(data).filter(([, v]) => v && (!Array.isArray(v) || v.length))),
+        deadline: dt(data.deadline, '23:59') || ev.deadline, startsAt: dt(data.startsAt, '09:00') || ev.startsAt });
+      setToast('Filled in from the text. Check it, then Add to feed.');
+    } catch (e) { err(e); } finally { setBusy(false); }
   };
   const pickTrack = (list, id) => list.includes(id) ? list.filter(x => x !== id) : [...list, id];
 
@@ -116,6 +127,9 @@ export default function TechTab() {
           <div className="seat-action">
             <div className="seat-action-title">Add a hackathon or event</div>
             <p className="small muted">For Unstop, Devfolio, college fests or anything you want students to see. It’s marked “Shared by Rajeev sir”.</p>
+            <textarea className="input tech-paste" rows={3} value={paste} onChange={e => setPaste(e.target.value)}
+              placeholder="Shortcut: paste an Instagram / LinkedIn / WhatsApp post or email about the event here, and AI fills the form below" />
+            <button className="btn btn-ghost btn-sm" style={{ margin: '6px 0 10px' }} disabled={busy || paste.trim().length < 20} onClick={fillFromPaste}>{busy ? 'Reading…' : 'Fill from text'}</button>
             <div className="seat-fields">
               <input className="input" placeholder="Title" value={ev.title} onChange={e => setEv({ ...ev, title: e.target.value })} />
               <input className="input" placeholder="Link (https://…)" value={ev.url} onChange={e => setEv({ ...ev, url: e.target.value })} />
@@ -172,26 +186,35 @@ export default function TechTab() {
       <div className="card" style={{ marginTop: 16 }}>
         <div className="tech-admin-head">
           <h2 style={{ fontSize: 16 }}>Sources</h2>
-          <button className="btn btn-ghost btn-sm" onClick={() => setSrc(src ? null : { name: '', url: '', tracks: [] })}>{src ? 'Close' : '+ Add RSS feed'}</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setSrc(src ? null : { type: 'page', name: '', url: '', location: '', tracks: [] })}>{src ? 'Close' : '+ Add source'}</button>
         </div>
         {src && (
           <div className="seat-action">
+            <div className="tabs" style={{ margin: '0 0 10px' }}>
+              <button className={`tab ${src.type === 'page' ? 'active' : ''}`} onClick={() => setSrc({ ...src, type: 'page' })}>College / company page</button>
+              <button className={`tab ${src.type === 'rss' ? 'active' : ''}`} onClick={() => setSrc({ ...src, type: 'rss' })}>RSS news feed</button>
+            </div>
+            {src.type === 'page' && <p className="small muted" style={{ marginBottom: 8 }}>
+              Link to the page where a college or company lists its events, fests, hackathons or drives. AI reads it once a day and adds the upcoming ones as events.
+              Instagram / LinkedIn pages can’t be read (they need a login): use “+ Add event” and paste the post instead.
+            </p>}
             <div className="seat-fields">
-              <input className="input" placeholder="Name, e.g. Python Insider" value={src.name} onChange={e => setSrc({ ...src, name: e.target.value })} />
-              <input className="input" placeholder="RSS feed link (https://…/feed)" value={src.url} onChange={e => setSrc({ ...src, url: e.target.value })} />
+              <input className="input" placeholder={src.type === 'page' ? 'Name, e.g. IIT BHU events' : 'Name, e.g. Python Insider'} value={src.name} onChange={e => setSrc({ ...src, name: e.target.value })} />
+              <input className="input" placeholder={src.type === 'page' ? 'Events page link (https://…)' : 'RSS feed link (https://…/feed)'} value={src.url} onChange={e => setSrc({ ...src, url: e.target.value })} />
+              {src.type === 'page' && <input className="input" placeholder="College, City, State (e.g. IIT BHU, Varanasi, Uttar Pradesh)" value={src.location} onChange={e => setSrc({ ...src, location: e.target.value })} />}
             </div>
             <div className="small muted" style={{ margin: '10px 0 6px' }}>Only about (optional):</div>
             <div className="tf-chips">
               {tracks.map(t => <button key={t.id} type="button" className={`tf-chip ${src.tracks.includes(t.id) ? 'on' : ''}`} onClick={() => setSrc({ ...src, tracks: pickTrack(src.tracks, t.id) })}>{t.label}</button>)}
             </div>
-            <div style={{ marginTop: 10 }}><button className="btn btn-primary btn-sm" disabled={busy} onClick={addSource}>{busy ? 'Checking the feed…' : 'Add feed'}</button></div>
+            <div style={{ marginTop: 10 }}><button className="btn btn-primary btn-sm" disabled={busy} onClick={addSource}>{busy ? (src.type === 'page' ? 'Reading the page…' : 'Checking the feed…') : 'Add'}</button></div>
           </div>
         )}
         <div className="tech-items">
           {status.sources.map(s => (
             <div key={s._id} className={`tech-item ${s.enabled ? '' : 'is-hidden'}`}>
               <div className="tech-item-main">
-                <strong style={{ fontSize: 14 }}>{s.name}</strong>{' '}<span className="badge badge-muted">{s.kind === 'event' ? 'events' : 'news'}</span>
+                <strong style={{ fontSize: 14 }}>{s.name}</strong>{' '}<span className="badge badge-muted">{s.type === 'page' ? 'college page · daily' : s.kind === 'event' ? 'events' : 'news'}</span>{s.location && <span className="small muted"> · {s.location}</span>}
                 <div className="tf-meta">
                   {s.lastRun?.at
                     ? <span style={{ color: s.lastRun.ok ? undefined : 'var(--danger)' }}>Last run {ago(s.lastRun.at)}: {s.lastRun.message}</span>
@@ -212,7 +235,7 @@ export default function TechTab() {
 
 // ── Tech Pass: price, length, who gets it free, gifts ──
 function PassCard({ pass, onSaved, setToast, err }) {
-  const [f, setF] = useState({ price: pass.price, days: pass.days });
+  const [f, setF] = useState({ price: pass.price, days: pass.days, paidGraceDays: pass.paidGraceDays });
   const [gift, setGift] = useState({ email: '', days: pass.days, note: '' });
   const [list, setList] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -254,12 +277,16 @@ function PassCard({ pass, onSaved, setToast, err }) {
           <div className="seat-fields" style={{ marginTop: 12, alignItems: 'flex-end' }}>
             <label className="small">Price (₹)<input className="input" type="number" min={1} value={f.price} onChange={e => setF({ ...f, price: e.target.value })} /></label>
             <label className="small">Lasts (days)<input className="input" type="number" min={1} value={f.days} onChange={e => setF({ ...f, days: e.target.value })} /></label>
-            <button className="btn btn-primary btn-sm" disabled={busy || (Number(f.price) === pass.price && Number(f.days) === pass.days)} onClick={() => save(f)}>Save</button>
+            {pass.freeForPaid && <label className="small">Program students keep it for (days after last class)<input className="input" type="number" min={0} value={f.paidGraceDays} onChange={e => setF({ ...f, paidGraceDays: e.target.value })} /></label>}
+            <button className="btn btn-primary btn-sm" disabled={busy || (Number(f.price) === pass.price && Number(f.days) === pass.days && Number(f.paidGraceDays) === pass.paidGraceDays)} onClick={() => save(f)}>Save</button>
           </div>
           <label className="small" style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 10 }}>
             <input type="checkbox" checked={pass.freeForPaid} disabled={busy} onChange={e => save({ freeForPaid: e.target.checked })} />
-            Free for students in a paid program (till 30 days after it ends) or an active paid course
+            Free for students while their paid program runs, or while their paid course access lasts
           </label>
+          {pass.freeForPaid && <p className="small muted" style={{ marginTop: 6 }}>
+            {Number(pass.paidGraceDays) ? `Program students lose the tips ${pass.paidGraceDays} days after their last class.` : 'Program students lose the tips as soon as their last class ends.'} Then they see the pass offer like everyone else.
+          </p>}
           <p className="small muted" style={{ marginTop: 6 }}>One-time payment through Razorpay (UPI, card, netbanking). No auto-renew. Price changes apply to new purchases only.</p>
         </>
       )}

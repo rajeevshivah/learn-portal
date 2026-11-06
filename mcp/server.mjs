@@ -538,16 +538,16 @@ tool('update_tech_item', 'write', 'Hide/unhide, pin/unpin or edit an item in the
 tool('delete_tech_item', 'destructive', 'Delete an event/news item you added by hand. (Fetched items can only be hidden.)',
   { itemId: zId('item') }, ({ itemId }) => api('DELETE', `tech/admin/items/${itemId}`));
 
-tool('set_tech_source', 'write', 'Switch a tech feed source on/off, change how many items it brings per refresh, or tie it to career goals.',
-  { sourceId: zId('source'), enabled: z.boolean().optional(), maxItems: z.number().int().min(1).max(50).optional(), tracks: zTracks.optional() },
+tool('set_tech_source', 'write', 'Switch a tech feed source on/off, change how many items it brings per refresh, tie it to career goals, or (college pages) set its location.',
+  { sourceId: zId('source'), enabled: z.boolean().optional(), maxItems: z.number().int().min(1).max(50).optional(), tracks: zTracks.optional(), location: z.string().max(120).optional() },
   ({ sourceId, ...body }) => api('PUT', `tech/admin/sources/${sourceId}`, { body }));
 
-tool('add_tech_source', 'write', 'Add an RSS/Atom news feed to the tech feed (it is test-read before saving). tracks: tie all its articles to these goals (optional).',
-  { name: z.string().min(2).max(80), url: z.string().url(), tracks: zTracks.optional(), maxItems: z.number().int().min(1).max(30).optional() },
+tool('add_tech_source', 'write', 'Add a source to the tech feed (test-read before saving). type "rss" (default): an RSS/Atom news feed. type "page": a college or company events/news web page; AI reads it once a day and adds the upcoming hackathons, fests, workshops and drives it lists as events. For pages give location "Venue/College, City, State" so students nearby see them under Near you. tracks: tie all its items to these goals (optional).',
+  { type: z.enum(['rss', 'page']).optional(), name: z.string().min(2).max(80), url: z.string().url(), location: z.string().max(120).optional(), tracks: zTracks.optional(), maxItems: z.number().int().min(1).max(30).optional() },
   (body) => api('POST', 'tech/admin/sources', { body }));
 
-tool('set_tech_pass', 'write', 'Tech Pass settings. The personal tips ("Why it matters / Try this") in the tech feed are free for students with a paid program/course when freeForPaid is on; everyone else buys a pass for `price` ₹ lasting `days`. enabled: false makes tips free for everyone.',
-  { enabled: z.boolean().optional(), price: z.number().int().min(1).max(50000).optional(), days: z.number().int().min(1).max(730).optional(), freeForPaid: z.boolean().optional() },
+tool('set_tech_pass', 'write', 'Tech Pass settings. The personal tips ("Why it matters / Try this") in the tech feed are free for students with a paid program/course when freeForPaid is on; everyone else buys a pass for `price` ₹ lasting `days`. enabled: false makes tips free for everyone. paidGraceDays: how many days after a program’s last class its students keep the tips (0 = access ends with the last class; never lifetime).',
+  { enabled: z.boolean().optional(), price: z.number().int().min(1).max(50000).optional(), days: z.number().int().min(1).max(730).optional(), freeForPaid: z.boolean().optional(), paidGraceDays: z.number().int().min(0).max(365).optional() },
   (body) => api('PUT', 'tech/admin/pass', { body }));
 
 tool('gift_tech_pass', 'write', 'Give a student a free Tech Pass for some days (added on top of any pass they have). The student must have signed in once.',

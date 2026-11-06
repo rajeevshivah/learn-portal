@@ -205,22 +205,45 @@ router.post('/admin/items', protect, adminOnly, asyncHandler(async (req, res) =>
   }
 }));
 
+// ── POST /api/tech/admin/items/extract { text, url? } — pasted post/email → event draft (AI) ──
+router.post('/admin/items/extract', protect, adminOnly, asyncHandler(async (req, res) => {
+  const text = String(req.body.text || '').trim();
+  if (text.length < 20) return res.status(400).json({ message: 'Paste the full announcement text' });
+  try { res.json(await feed.extractEvent(text, String(req.body.url || '').trim())); }
+  catch (e) { res.status(400).json({ message: `Couldn’t read it: ${e.message}` }); }
+}));
+
 // ── Sources: switch on/off, add an RSS feed, remove one you added ──
 router.put('/admin/sources/:id', protect, adminOnly, asyncHandler(async (req, res) => {
   const src = await TechSource.findById(req.params.id);
   if (!src) return res.status(404).json({ message: 'Source not found' });
   if (req.body.enabled !== undefined) src.enabled = Boolean(req.body.enabled);
   if (req.body.maxItems !== undefined) src.maxItems = Math.min(50, Math.max(1, Number(req.body.maxItems) || 15));
+  if (req.body.location !== undefined) src.location = String(req.body.location || '').trim().slice(0, 120);
   if (req.body.tracks !== undefined) src.tracks = (Array.isArray(req.body.tracks) ? req.body.tracks : []).filter(t => TRACK_IDS.includes(t));
   await src.save();
   res.json(src);
 }));
 
+// Body: { type: 'rss' | 'page', name, url, tracks?, maxItems?, location? (page) }
 router.post('/admin/sources', protect, adminOnly, asyncHandler(async (req, res) => {
   const name = String(req.body.name || '').trim().slice(0, 80);
   const url = String(req.body.url || '').trim();
-  if (!name || !okUrl(url)) return res.status(400).json({ message: 'Give the source a name and its RSS feed link (https://…)' });
   const tracks = (Array.isArray(req.body.tracks) ? req.body.tracks : []).filter(t => TRACK_IDS.includes(t));
+  if (req.body.type === 'page') {
+    if (!name || !okUrl(url)) return res.status(400).json({ message: 'Give the college/company name and the link to its events or news page (https://…)' });
+    const location = String(req.body.location || '').trim().slice(0, 120);
+    const test = { name, url, location, type: 'page' };
+    let found;
+    try { found = await feed.FETCHERS.page(test); }
+    catch (e) { return res.status(400).json({ message: `Couldn’t read that page: ${e.message}` }); }
+    const src = await TechSource.create({ name, url, location, type: 'page', kind: 'event', tracks, maxItems: 15 });
+    feed.refresh().catch(() => {});
+    return res.status(201).json({ ...src.toObject(), message: found.length
+      ? `Added. Found ${found.length} upcoming event${found.length > 1 ? 's' : ''}: ${found.slice(0, 3).map(f => f.title).join('; ')}${found.length > 3 ? '…' : ''}. Checked once a day.`
+      : 'Added. No upcoming events on it right now; it’s checked once a day.' });
+  }
+  if (!name || !okUrl(url)) return res.status(400).json({ message: 'Give the source a name and its RSS feed link (https://…)' });
   // Check it really is a feed before saving
   const test = { name, url, type: 'rss' };
   try {
@@ -241,7 +264,7 @@ router.delete('/admin/sources/:id', protect, adminOnly, asyncHandler(async (req,
   res.json({ message: 'Source removed. Its articles leave the feed as they age out.' });
 }));
 
-// ── Tech Pass settings: { enabled?, price?, days?, freeForPaid? } ──
+// ── Tech Pass settings: { enabled?, price?, days?, freeForPaid?, paidGraceDays? } ──
 router.put('/admin/pass', protect, adminOnly, asyncHandler(async (req, res) => {
   const s = await Settings.get();
   const cur = passSettings(s);
@@ -252,6 +275,11 @@ router.put('/admin/pass', protect, adminOnly, asyncHandler(async (req, res) => {
     const p = Math.round(Number(req.body.price));
     if (!(p >= 1 && p <= 50000)) return res.status(400).json({ message: 'Price must be between ₹1 and ₹50,000' });
     next.price = p;
+  }
+  if (req.body.paidGraceDays !== undefined) {
+    const g = Math.round(Number(req.body.paidGraceDays));
+    if (!(g >= 0 && g <= 365)) return res.status(400).json({ message: 'Days after the program must be 0 to 365' });
+    next.paidGraceDays = g;
   }
   if (req.body.days !== undefined) {
     const d = Math.round(Number(req.body.days));
