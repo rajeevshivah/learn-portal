@@ -99,12 +99,14 @@ export default function SettingsTab() {
   const [busy, setBusy] = useState(false);
   const [uploadingQr, setUploadingQr] = useState(false);
   const [singleDevice, setSingleDevice] = useState(null);   // null until loaded
+  const [meetDefault, setMeetDefault] = useState(null);
 
   useEffect(() => {
     axios.get(`${API}/settings`).then(({ data }) => {
       setForm({ upiId: data.upiId || '', upiName: data.upiName || '', paymentNote: data.paymentNote || '' });
       setQrUrl(data.paymentQrUrl || '');
       setSingleDevice(data.singleDeviceLogin !== false);
+      setMeetDefault(data.meetLinkPerClassForNew !== false);
     }).catch(() => setToast('Could not load settings'));
   }, []);
 
@@ -157,6 +159,17 @@ export default function SettingsTab() {
     }
   };
 
+  const toggleMeetDefault = async (on) => {
+    setMeetDefault(on);
+    try {
+      await axios.put(`${API}/settings`, { meetLinkPerClassForNew: on });
+      setToast(on ? 'New programs get a Meet link per class' : 'New programs start without automatic Meet links');
+    } catch (err) {
+      setMeetDefault(!on);
+      setToast(err.response?.data?.message || 'Could not save');
+    }
+  };
+
   const testLink = form.upiId
     ? `upi://pay?pa=${encodeURIComponent(form.upiId)}&pn=${encodeURIComponent(form.upiName || 'codeWithShivah')}&am=1&cu=INR&tn=Test`
     : '';
@@ -192,6 +205,22 @@ export default function SettingsTab() {
               Signing in on a new phone or laptop signs the student out of the previous one, so one paid account
               can’t be used by two people side by side. Students switching devices just sign in again with Google.
               Admin accounts are never affected.
+            </span>
+          </span>
+        </label>
+      </div>
+
+      {/* ── Class Meet links ── */}
+      <div className="card" style={{ marginTop: 16 }}>
+        <h2 style={{ fontSize: 16, marginBottom: 6 }}>Class Meet links</h2>
+        <label className="checkbox-row" style={{ alignItems: 'flex-start' }}>
+          <input type="checkbox" checked={Boolean(meetDefault)} disabled={meetDefault === null}
+            onChange={e => toggleMeetDefault(e.target.checked)} style={{ marginTop: 2 }} />
+          <span>
+            <strong style={{ color: 'var(--text)' }}>New programs get a Meet link per class</strong><br />
+            <span className="small muted">
+              Every class of a new program gets its own Google Meet, made automatically in your Google Calendar.
+              You can switch it per program under Live &amp; Workshops → 🔗 Meet links.
             </span>
           </span>
         </label>

@@ -326,7 +326,7 @@ tool('find_registration', 'read', 'Find webinar registrations across ALL program
   { query: z.string().min(3).describe('name, email, phone, UTR or pay_… id') },
   async ({ query }) => (await api('GET', 'events/admin/find-registration', { query: { q: query } })).map(regRow));
 
-tool('transfer_registration', 'write', 'Move a confirmed or pending seat to another email (student lost access to the email they registered with, or used the wrong one). Access, recordings and refund rights move with it. If nobody has signed in with that email yet, an account is created and the student simply signs in with Google using it. Also updates the Meet guest list.',
+tool('transfer_registration', 'write', 'Move a confirmed or pending seat to another email (student lost access to the email they registered with, or used the wrong one). Access, recordings and refund rights move with it. If nobody has signed in with that email yet, an account is created and the student simply signs in with Google using it.',
   { registrationId: zId('registration'), email: z.string().email(), name: z.string().max(120).optional(),
     note: z.string().max(300).optional().describe('why, kept in the seat history') },
   ({ registrationId, ...body }) => api('PUT', `events/registrations/${registrationId}/transfer`, { body }));
@@ -337,16 +337,13 @@ tool('cancel_registration', 'destructive', 'Cancel a CONFIRMED seat: the student
     refundRef: z.string().max(80).optional(), upiId: z.string().max(80).optional() },
   ({ registrationId, ...body }) => api('PUT', `events/registrations/${registrationId}/cancel`, { body }));
 
-// ── Meet guest list ──
-tool('get_meet_guests', 'read', 'Meet guest list status for a program: whether it is on, whether Google Calendar is connected, the Meet link, confirmed students vs guests on the invite, and the last sync result.',
+// ── Meet link per class ──
+tool('get_meet_links', 'read', 'Meet links for a program: whether "Meet link per class" is on, Google Calendar connection, and how many upcoming classes have a portal-made link, a link you typed in, or no link.',
   { eventId: zId('event') }, ({ eventId }) => api('GET', `events/${eventId}/meet`));
 
-tool('set_meet_guests', 'write', 'Switch the Meet guest list on/off for a program. When on, every confirmed student is kept on the guest list of the Google Calendar event with the class Meet link (removed again if cancelled/refunded), so with the meeting set to "Trusted" a forwarded link has to ask to join. calendarRef: the Google Calendar event link or id; "" finds it from the Meet link on the classes. Syncs right away when on.',
-  { eventId: zId('event'), enabled: z.boolean().optional(), calendarRef: z.string().max(2000).optional() },
+tool('set_meet_links', 'write', 'Switch "Meet link per class" on/off for a program. When on, every upcoming class gets its own Google Meet (a Google Calendar event in the host account, no guests), so a forwarded link only works for one class; links follow the class when it is moved, renamed or deleted, and are made automatically whenever classes are added. Classes with a link you typed in are left alone unless replaceOwn: true, which gives them their own new links (use once to move a program off one shared link). Students only get a link from 15 min before class. Calling with no fields re-runs it (e.g. to create missing links).',
+  { eventId: zId('event'), enabled: z.boolean().optional(), replaceOwn: z.boolean().optional() },
   ({ eventId, ...body }) => api('PUT', `events/${eventId}/meet`, { body }));
-
-tool('sync_meet_guests', 'write', 'Update the Meet guest list of a program now (normally automatic after every payment, approval, move or cancellation).',
-  { eventId: zId('event') }, ({ eventId }) => api('POST', `events/${eventId}/meet/sync`));
 
 // ─────────────────────────────────────────────────────────
 // CLASS FEEDBACK & TESTIMONIALS
@@ -654,7 +651,9 @@ tool('delete_promotion', 'destructive', 'Delete a promotion.', { promotionId: zI
 // ─────────────────────────────────────────────────────────
 // PAYMENT SETTINGS
 // ─────────────────────────────────────────────────────────
-tool('get_payment_settings', 'read', 'UPI id, display name, payment note, custom QR, and whether students are limited to one signed-in device (singleDeviceLogin).', {}, () => api('GET', 'settings'));
+tool('get_payment_settings', 'read', 'UPI id, display name, payment note, custom QR, whether students are limited to one signed-in device (singleDeviceLogin), and whether new programs get a Meet link per class (meetLinkPerClassForNew).', {}, () => api('GET', 'settings'));
+tool('set_meet_links_default', 'write', 'Whether NEW programs start with "Meet link per class" switched on.',
+  { on: z.boolean() }, ({ on }) => api('PUT', 'settings', { body: { meetLinkPerClassForNew: on } }));
 tool('set_single_device_login', 'write', 'Turn "one device at a time" on or off for students. On: a new sign-in signs the student out of their previous device, so one paid account can\'t be used by two people at once. Admins are never affected.',
   { on: z.boolean() }, ({ on }) => api('PUT', 'settings', { body: { singleDeviceLogin: on } }));
 tool('update_payment_settings', 'write', 'Change UPI id, display name or the note shown on payment pages.',

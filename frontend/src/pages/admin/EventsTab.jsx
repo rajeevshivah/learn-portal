@@ -286,86 +286,90 @@ function FeedbackPanel({ ev, setToast }) {
   );
 }
 
-// ── Meet guest list: keep confirmed students on the class meeting's invite ──
-function MeetPanel({ ev, setToast }) {
+// ── Meet link per class: a fresh Google Meet for every class ──
+function MeetPanel({ ev, setToast, onChanged }) {
   const [info, setInfo] = useState(null);
-  const [ref, setRef] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
   const load = useCallback(() => axios.get(`${API}/events/${ev._id}/meet`)
-    .then(({ data }) => { setInfo(data); setRef(data.calendarEventId || ''); })
+    .then(({ data }) => setInfo(data))
     .catch(e => setErr(e.response?.data?.message || 'Could not load')), [ev._id]);
   useEffect(() => { load(); }, [load]);
 
-  const save = async (body) => {
+  const send = async (body, confirmText) => {
+    if (confirmText && !window.confirm(confirmText)) return;
     setBusy(true); setErr('');
     try {
       const { data } = await axios.put(`${API}/events/${ev._id}/meet`, body);
-      setInfo(data); setRef(data.calendarEventId || ''); setToast(data.message);
+      setInfo(data); setToast(data.message); onChanged?.();
     } catch (e) {
       const d = e.response?.data;
-      if (d?.connected !== undefined) { setInfo(d); setRef(d.calendarEventId || ''); }
-      setErr(d?.message || 'Could not save');
+      if (d?.connected !== undefined) setInfo(d);
+      setErr(d?.message || 'Something went wrong');
     } finally { setBusy(false); }
-  };
-  const syncNow = async () => {
-    setBusy(true); setErr('');
-    try { const { data } = await axios.post(`${API}/events/${ev._id}/meet/sync`); setInfo(data); setToast(data.message); }
-    catch (e) { const d = e.response?.data; if (d?.connected !== undefined) setInfo(d); setErr(d?.message || 'Sync failed'); }
-    finally { setBusy(false); }
   };
 
   if (!info) return <div className="meet-panel small muted">{err || 'Loading…'}</div>;
-  const ls = info.lastSync;
+  const ls = info.lastRun;
   return (
     <div className="meet-panel">
       <div className="meet-head">
         <div>
-          <div className="meet-title">Meet guest list</div>
+          <div className="meet-title">Meet link per class</div>
           <p className="small muted">
-            Every confirmed student is added to the class meeting’s calendar invite, and removed if their seat is
-            cancelled or refunded. Set the meeting’s access to <strong>Trusted</strong> in Google Meet: guests join directly,
-            anyone with a forwarded link has to ask to join.
+            Every upcoming class gets its own Google Meet, created in your Google Calendar. If a student forwards a link,
+            it only works for that one class. Links are made the moment you add or change classes, and follow the class if
+            you move or delete it. A class where you type your own link is left alone.
           </p>
         </div>
         <label className="switch-row">
-          <input type="checkbox" checked={info.enabled} disabled={busy}
-            onChange={e => save({ enabled: e.target.checked, calendarRef: ref })} />
+          <input type="checkbox" checked={info.enabled} disabled={busy || (!info.connected && !info.enabled)}
+            onChange={e => send({ enabled: e.target.checked })} />
           <span>{info.enabled ? 'On' : 'Off'}</span>
         </label>
       </div>
 
       {!info.connected && (
         <div className="meet-warn small">
-          Google Calendar isn’t connected on the server yet. Run <code>node scripts/google-calendar-token.js</code> once
-          and add the three <code>GOOGLE_CAL_…</code> values on Render. You can switch this on now; it starts working once they’re added.
+          Google Calendar isn’t connected on the server. Add the three <code>GOOGLE_CAL_…</code> values on Render
+          (see <code>SEATS-MEET-LOGIN.md</code>).
         </div>
       )}
 
       <div className="meet-grid small">
-        <div><span className="muted">Meet link on upcoming classes</span><br />
-          {info.meetLinks.length ? info.meetLinks.map(l => <code key={l} className="meet-code">{l.replace(/^https:\/\//, '')}</code>)
-            : <span style={{ color: 'var(--danger)' }}>None. Add the Google Meet link to the upcoming classes.</span>}
+        <div><span className="muted">Upcoming classes</span><br /><strong>{info.upcoming}</strong></div>
+        <div><span className="muted">With their own portal link</span><br /><strong>{info.portalLinks}</strong></div>
+        <div><span className="muted">With a link you typed</span><br /><strong>{info.ownLinks}</strong></div>
+        <div><span className="muted">No link yet</span><br /><strong style={{ color: info.noLink ? 'var(--warning)' : undefined }}>{info.noLink}</strong></div>
+      </div>
+
+      {info.enabled && info.ownLinks > 0 && (
+        <div className="meet-warn small">
+          {info.sharedOwnLink
+            ? <>{info.ownLinks} upcoming classes use a link you typed, shared between them. A forwarded copy works for all of them.</>
+            : <>{info.ownLinks} upcoming {info.ownLinks === 1 ? 'class uses' : 'classes use'} a link you typed in.</>}
+          {' '}<button className="btn btn-ghost btn-sm" disabled={busy} style={{ marginLeft: 6 }}
+            onClick={() => send({ replaceOwn: true }, `Give all ${info.ownLinks} upcoming classes their own new Meet link? Your current link stops being used for them. Students always join from the portal, so they get the new links automatically.`)}>
+            Give each its own link
+          </button>
         </div>
-        <div><span className="muted">Confirmed students</span><br /><strong>{info.confirmed}</strong></div>
-        <div><span className="muted">On the invite (added by the portal)</span><br /><strong>{info.guestsManaged}</strong></div>
-      </div>
+      )}
 
-      <label className="small muted" style={{ display: 'block', margin: '12px 0 4px' }}>
-        Calendar event (optional: found from the Meet link if blank)
-      </label>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <input className="input" style={{ flex: '1 1 280px' }} placeholder="Paste the Google Calendar event link"
-          value={ref} onChange={e => setRef(e.target.value)} />
-        <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => save({ calendarRef: ref })}>Save</button>
-        {info.enabled && <button className="btn btn-primary btn-sm" disabled={busy} onClick={syncNow}>{busy ? 'Syncing…' : 'Sync now'}</button>}
-      </div>
+      {info.enabled && info.noLink > 0 && (
+        <button className="btn btn-primary btn-sm" style={{ marginTop: 10 }} disabled={busy} onClick={() => send({})}>
+          {busy ? 'Working…' : 'Create missing links now'}
+        </button>
+      )}
 
+      <p className="small muted" style={{ marginTop: 10 }}>
+        Students see a class’s link only from 15 minutes before it starts, on the portal.
+        {' '}New programs start with this {info.defaultForNew ? 'on' : 'off'} (change it in Settings).
+      </p>
       {err && <div className="small meet-err">{err}</div>}
       {ls && (
-        <div className="small muted" style={{ marginTop: 10 }}>
-          Last sync {new Date(ls.at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true })}:{' '}
+        <div className="small muted" style={{ marginTop: 6 }}>
+          Last run {new Date(ls.at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true })}:{' '}
           <span style={{ color: ls.ok ? 'var(--success)' : 'var(--danger)' }}>{ls.message}</span>
         </div>
       )}
@@ -483,7 +487,7 @@ export default function EventsTab({ onChange }) {
 
   const [recordingsFor, setRecordingsFor] = useState(null); // event id whose recordings panel is open
   const [feedbackFor, setFeedbackFor] = useState(null);     // event id whose feedback panel is open
-  const [meetFor, setMeetFor] = useState(null);             // event id whose Meet guest panel is open
+  const [meetFor, setMeetFor] = useState(null);             // event id whose Meet links panel is open
   const [seatAction, setSeatAction] = useState(null);       // { id, kind: 'move' | 'cancel' }
   const [showImport, setShowImport] = useState(false);   // JSON import panel toggle
   const [pasteText, setPasteText]   = useState('');      // pasted JSON
@@ -630,9 +634,9 @@ export default function EventsTab({ onChange }) {
 
     setSaving(true);
     try {
-      if (e._id) await axios.put(`${API}/events/${e._id}`, payload);
-      else       await axios.post(`${API}/events`, payload);
-      setToast(e._id ? 'Event updated' : 'Event created');
+      const { data } = e._id ? await axios.put(`${API}/events/${e._id}`, payload)
+        : await axios.post(`${API}/events`, payload);
+      setToast(`${e._id ? 'Event updated' : 'Event created'}${data?.meetNote ? `. ${data.meetNote}` : ''}`);
       setEditing(null);
       load();
       onChange?.();
@@ -1256,7 +1260,7 @@ export default function EventsTab({ onChange }) {
                   </button>
                   <button className="btn btn-ghost btn-sm"
                     onClick={() => setMeetFor(meetFor === ev._id ? null : ev._id)}>
-                    🔒 Meet guests{ev.meetSync?.enabled && <span className="badge badge-success" style={{ marginLeft: 6 }}>on</span>}
+                    🔗 Meet links{ev.meetAuto?.enabled && <span className="badge badge-success" style={{ marginLeft: 6 }}>per class</span>}
                   </button>
                   <button className="btn btn-ghost btn-sm" onClick={() => startEdit(ev)}>Edit</button>
                   <button className="btn btn-ghost btn-sm" onClick={() => remove(ev)}
@@ -1267,7 +1271,7 @@ export default function EventsTab({ onChange }) {
                 <RecordingsPanel key={ev._id + (ev.updatedAt || '')} ev={ev} courses={courses} onSaved={load} setToast={setToast} />
               )}
               {feedbackFor === ev._id && <FeedbackPanel ev={ev} setToast={setToast} />}
-              {meetFor === ev._id && <MeetPanel ev={ev} setToast={setToast} />}
+              {meetFor === ev._id && <MeetPanel ev={ev} setToast={setToast} onChanged={load} />}
             </div>
           ))}
         </div>

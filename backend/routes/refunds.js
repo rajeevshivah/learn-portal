@@ -10,7 +10,6 @@ const Course = require('../models/Course');
 const { protect, adminOnly } = require('../middleware/auth');
 const { liveWindow, courseWindow, issueWindow, payMethod, istFmt } = require('../utils/refundWindow');
 const razorpay = require('./razorpay');
-const { queueSync } = require('../utils/meetGuests');
 
 // ── Refunds ───────────────────────────────────────────────
 // Students ask from their Refunds page (always there, listing every paid
@@ -207,7 +206,6 @@ async function settleRefund(r, { amount, manual, refundRef, removeAccess: revoke
 router.put('/:id/approve', protect, adminOnly, asyncHandler(async (req, res) => {
   const r = await loadReq(req, res); if (!r) return;
   if (r.status !== 'pending') return res.status(400).json({ message: `Already ${r.status}` });
-  const hadAccess = r.registration && await Registration.exists({ _id: r.registration, status: 'active' });
   try {
     await settleRefund(r, {
       amount: req.body.amount, manual: req.body.manual, refundRef: req.body.refundRef,
@@ -217,7 +215,6 @@ router.put('/:id/approve', protect, adminOnly, asyncHandler(async (req, res) => 
     if (e.status === 400) return res.status(400).json({ message: e.message });
     throw e;
   }
-  if (hadAccess && r.accessRemoved && r.event) queueSync(r.event);
   res.json(adminView(r));
 }));
 

@@ -1,5 +1,9 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import axios from 'axios';
 import { RecLink } from './RecordingPlayer';
+
+const API = import.meta.env.VITE_API_URL;
 
 export const JOIN_EARLY_MS = 15 * 60000;   // Join button opens 15 min before class
 export const endOf = (s) => new Date(s.startsAt).getTime() + (s.durationMins || 60) * 60000;
@@ -24,13 +28,53 @@ export function startsIn(target) {
 
 export { RecLink } from './RecordingPlayer';
 
+// Re-render every 30 s so the Join button appears on time without a reload.
+function useNow(ms = 30000) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), ms); return () => clearInterval(id); }, [ms]);
+  return now;
+}
+
+// ── Join button ──
+// The server only hands out a class's Meet link from 15 minutes before it starts
+// until it ends, so the button asks for it at click time. A tab is opened first
+// (in the click itself) so the browser doesn't block it as a pop-up.
+export function JoinButton({ eventId, session, className = 'btn ticket-join', label = 'Join class', waitClass = 'ticket-join-wait' }) {
+  const now = useNow();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const start = new Date(session.startsAt).getTime();
+  const open = now >= start - JOIN_EARLY_MS && now < endOf(session) + 15 * 60000;
+  const hasLink = Boolean(session.joinUrl || session.hasJoinLink);
+
+  if (!open) {
+    return <span className={waitClass}>{hasLink ? `Join opens at ${fmtTime(start - JOIN_EARLY_MS)}` : 'Join link appears here before class'}</span>;
+  }
+  const join = async () => {
+    setErr(''); setBusy(true);
+    const tab = window.open('', '_blank');
+    try {
+      const { data } = await axios.get(`${API}/events/${eventId}/sessions/${session._id}/join`);
+      if (tab) { tab.opener = null; tab.location.href = data.url; } else window.location.href = data.url;
+    } catch (e) {
+      if (tab) tab.close();
+      setErr(e.response?.data?.message || 'Could not open the class. Try again.');
+    } finally { setBusy(false); }
+  };
+  return (
+    <>
+      <button type="button" className={className} onClick={join} disabled={busy}>{busy ? 'Opening…' : label}</button>
+      {err && <span className="small" style={{ color: 'var(--danger)' }}>{err}</span>}
+    </>
+  );
+}
+
 // ── The class ticket: tonight's (or the next) class for a registered program ──
 export default function ClassTicket({ t, compact = false }) {
   const { event, session, number, total, lastRec } = t;
   const now = Date.now();
   const start = new Date(session.startsAt).getTime();
   const live = now >= start && now < endOf(session);
-  const joinOpen = now >= start - JOIN_EARLY_MS && now < endOf(session);
   const today = sameDay(session.startsAt, now);
   const when = live ? 'Live now' : `Starts ${startsIn(session.startsAt)}`;
 
@@ -47,13 +91,7 @@ export default function ClassTicket({ t, compact = false }) {
           </span>
         </div>
         <div className="ticket-actions">
-          {session.joinUrl && joinOpen ? (
-            <a className="btn ticket-join" href={session.joinUrl} target="_blank" rel="noreferrer">Join class</a>
-          ) : (
-            <span className="ticket-join-wait">
-              {session.joinUrl ? `Join opens at ${fmtTime(start - JOIN_EARLY_MS)}` : 'Join link appears here before class'}
-            </span>
-          )}
+          <JoinButton eventId={event._id} session={session} />
           {event.whatsappLink && (
             <a className="btn btn-ghost btn-sm" href={event.whatsappLink} target="_blank" rel="noreferrer">WhatsApp group</a>
           )}

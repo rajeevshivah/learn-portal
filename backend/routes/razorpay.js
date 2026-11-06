@@ -1,3 +1,4 @@
+const { isJoinOpen } = require('../utils/joinWindow');
 const express      = require('express');
 const crypto       = require('crypto');
 const router       = express.Router();
@@ -113,7 +114,6 @@ async function fulfill(payment, rzpPayment = {}) {
           expectation: payment.form?.expectation || existing?.expectation || '',
         },
       });
-      require('../utils/meetGuests').queueSync(payment.event);
     }
   }
 
@@ -156,8 +156,9 @@ async function successReply(payment) {
     slug: event?.slug,
     message: event?.confirmationMsg || 'Payment successful — you are registered!',
     whatsappLink: event?.whatsappLink || '',
+    // Link only around class time (see utils/joinWindow.js)
     sessions: (event?.sessions || []).map(s => ({
-      title: s.title, startsAt: s.startsAt, durationMins: s.durationMins, joinUrl: s.joinUrl,
+      title: s.title, startsAt: s.startsAt, durationMins: s.durationMins, joinUrl: isJoinOpen(s) ? s.joinUrl : '',
     })),
   };
 }

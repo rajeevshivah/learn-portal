@@ -6,7 +6,7 @@ import Toast from '../components/Toast';
 import { getRzpConfig, payWithRazorpay, PAYMENT_HELP_TEXT } from '../lib/razorpay';
 import { RefundNote } from './RefundPolicy';
 import { EventFeedback, Testimonials } from '../components/Feedback';
-import ClassTicket from '../components/ClassTicket';
+import ClassTicket, { JoinButton } from '../components/ClassTicket';
 import { RecLink } from '../components/RecordingPlayer';
 
 const API = import.meta.env.VITE_API_URL;
@@ -444,11 +444,11 @@ export default function EventDetail() {
                     <div className="ed-sched-body">
                       <div className="ed-sched-title">{s.title}</div>
                       <div className="small muted">{fmt(s.startsAt)} · {s.durationMins} min</div>
-                      {isActive && s.joinUrl && nextSession && s._id === nextSession._id && (
-                        <a href={s.joinUrl} target="_blank" rel="noreferrer"
-                          className="btn btn-primary btn-sm" style={{ marginTop: 8, display: 'inline-block' }}>
-                          {isLiveNow(s) ? 'Live now: join class' : 'Join link for this class'}
-                        </a>
+                      {isActive && (s.joinUrl || s.hasJoinLink) && nextSession && s._id === nextSession._id && (
+                        <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <JoinButton eventId={event._id} session={s} className="btn btn-primary btn-sm"
+                            label={isLiveNow(s) ? 'Live now: join class' : 'Join class'} waitClass="small muted" />
+                        </div>
                       )}
                       {isActive && s.recordingUrl && (
                         <RecLink s={s} className="btn btn-ghost btn-sm" style={{ marginTop: 8, display: 'inline-block' }}>

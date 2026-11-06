@@ -11,7 +11,9 @@ const { cloudinary, uploadImage } = require('../config/cloudinary');
 const { protect, adminOnly } = require('../middleware/auth');
 const User         = require('../models/User');
 const RefundRequest = require('../models/RefundRequest');
-const meet         = require('../utils/meetGuests');
+const meetLinks    = require('../utils/meetLinks');
+const { isConfigured: googleConnected } = require('../utils/googleCalendar');
+const { isJoinOpen, joinWindow } = require('../utils/joinWindow');
 
 // ─────────────────────────────────────────────────────────
 // Helpers
@@ -36,9 +38,12 @@ const hiddenFrom = (event, registration, user) =>
 
 // Session list for a student: join + recording links only for confirmed
 // registrations. Everyone else just learns whether a recording exists.
-const shapeSessions = (sessions, active) => (sessions || []).map(s => ({
+const shapeSessions = (sessions, active) => (sessions || []).map(({ autoMeet, ...s }) => ({
   ...s,
-  joinUrl:      active ? s.joinUrl : '',
+  // The Meet link is only handed over around class time (15 min before → 15 min
+  // after), so links can't be collected and forwarded ahead of time.
+  joinUrl:      active && isJoinOpen(s) ? s.joinUrl : '',
+  hasJoinLink:  active && Boolean(s.joinUrl),
   recordingUrl: active ? s.recordingUrl : '',
   hasRecording: Boolean(s.recordingUrl),
   notesUrl:     active ? (s.notesUrl || '') : '',
@@ -391,7 +396,7 @@ router.post(
       sessions: confirmed
         ? event.sessions.map(s => ({
             title: s.title, startsAt: s.startsAt,
-            durationMins: s.durationMins, joinUrl: s.joinUrl,
+            durationMins: s.durationMins, joinUrl: isJoinOpen(s) ? s.joinUrl : '',
           }))
         : [],
     });
@@ -462,10 +467,14 @@ router.post('/', protect, adminOnly, asyncHandler(async (req, res) => {
   }
 
   if (!body.recordingsCourse) body.recordingsCourse = null;
-  delete body.meetSync;   // managed only through /:id/meet
+  delete body.meetAuto;   // managed only through /:id/meet
+  if (Array.isArray(body.sessions)) body.sessions = body.sessions.map(({ autoMeet, ...x }) => x);
+  const settings = await Settings.get();
+  body.meetAuto = { enabled: googleConnected() && settings.meetLinkPerClassForNew !== false };
   const event = await LiveEvent.create(body);
   await syncAllLessons(event);
-  res.status(201).json(event);
+  const meetNote = await meetLinks.afterEdit(event._id);
+  res.status(201).json({ ...(await LiveEvent.findById(event._id)).toObject(), meetNote });
 }));
 
 // ── PUT /api/events/:id — update ─────────────────────────
@@ -476,12 +485,15 @@ router.put('/:id', protect, adminOnly, asyncHandler(async (req, res) => {
   const body = { ...req.body };
   if (body.slug) body.slug = body.slug.toLowerCase().trim();
   delete body._id;
-  delete body.meetSync;   // managed only through /:id/meet, so a stale form can't undo it
+  delete body.meetAuto;   // managed only through /:id/meet, so a stale form can't undo it
 
   // Keep recording timestamps across full-form saves; stamp new/changed links.
+  let removedSessions = [];
   if (Array.isArray(body.sessions)) {
     const before = new Map(event.sessions.map(x => [String(x._id), x]));
-    body.sessions = body.sessions.map(x => {
+    const kept = new Set(body.sessions.filter(x => x._id).map(x => String(x._id)));
+    removedSessions = event.sessions.filter(x => !kept.has(String(x._id))).map(x => x.toObject());
+    body.sessions = body.sessions.map(({ autoMeet, ...x }) => {
       const old = x._id ? before.get(String(x._id)) : null;
       const url = (x.recordingUrl || '').trim();
       let addedAt = old?.recordingAddedAt || null;
@@ -493,6 +505,7 @@ router.put('/:id', protect, adminOnly, asyncHandler(async (req, res) => {
         recordingAddedAt: addedAt,
         publishedEpisode: x.publishedEpisode ?? old?.publishedEpisode ?? null,
         notesUrl: x.notesUrl ?? old?.notesUrl ?? '',   // whiteboard notes survive form saves
+        autoMeet: old?.autoMeet?.eventId ? old.autoMeet.toObject() : undefined,   // server-owned
       };
     });
   }
@@ -502,7 +515,9 @@ router.put('/:id', protect, adminOnly, asyncHandler(async (req, res) => {
   Object.assign(event, body);
   await event.save();
   await syncAllLessons(event);
-  res.json(event);
+  await meetLinks.releaseSessions(removedSessions);   // deleted classes: delete their meetings
+  const meetNote = await meetLinks.afterEdit(event._id);
+  res.json({ ...(await LiveEvent.findById(event._id)).toObject(), meetNote });
 }));
 
 // ── PUT /api/events/:id/sessions/:sessionId/recording ──
@@ -546,6 +561,7 @@ router.delete('/:id', protect, adminOnly, asyncHandler(async (req, res) => {
     }
   }
   await Registration.deleteMany({ event: event._id });
+  await meetLinks.releaseSessions(event.sessions.map(x => x.toObject()));
   await event.deleteOne();
 
   res.json({ message: 'Event and its registrations deleted' });
@@ -587,7 +603,6 @@ router.put('/registrations/:id/approve', protect, adminOnly, asyncHandler(async 
   reg.approvedAt = new Date();
   reg.rejectReason = '';
   await reg.save();
-  meet.queueSync(reg.event._id);
 
   res.json({ message: 'Approved — WhatsApp link unlocked for this student', registration: reg });
 }));
@@ -732,7 +747,6 @@ router.put('/registrations/:id/transfer', protect, adminOnly, asyncHandler(async
     note: String(req.body.note || '').trim().slice(0, 300), by: req.user._id,
   });
   await reg.save();
-  meet.queueSync(reg.event);
 
   res.json({
     message: created
@@ -789,7 +803,6 @@ router.put('/registrations/:id/cancel', protect, adminOnly, asyncHandler(async (
   if (fresh.status === 'active') fresh.status = refund ? 'refunded' : 'cancelled';
   fresh.history.push({ action: 'cancelled', from: reg.user?.email || '', note: reason, by: req.user._id });
   await fresh.save();
-  meet.queueSync(reg.event._id);
 
   res.json({
     message: !refund ? 'Seat cancelled. The student no longer has access.'
@@ -801,18 +814,49 @@ router.put('/registrations/:id/cancel', protect, adminOnly, asyncHandler(async (
 }));
 
 // ─────────────────────────────────────────────────────────
-// MEET GUEST LIST (admin)
+// JOIN A CLASS (student) — the link, only around class time
 // ─────────────────────────────────────────────────────────
-const meetView = async (event) => ({
-  connected: meet.isConfigured(),
-  enabled: Boolean(event.meetSync?.enabled),
-  calendarEventId: event.meetSync?.calendarEventId || '',
-  // Links on classes still to come: the meeting that matters now
-  meetLinks: [...new Set(meet.currentSessions(event).map(s => s.joinUrl).filter(u => meet.meetCode(u)))],
-  confirmed: await Registration.countDocuments({ event: event._id, status: 'active' }),
-  guestsManaged: (event.meetSync?.managedEmails || []).length,
-  lastSync: event.meetSync?.lastSync?.at ? event.meetSync.lastSync : null,
-});
+// GET /api/events/:id/sessions/:sessionId/join → { url }
+// The page asks for the link when the student clicks Join, so a page opened
+// hours earlier still works, and the link is never sent ahead of time.
+router.get('/:id/sessions/:sessionId/join', protect, asyncHandler(async (req, res) => {
+  const event = await LiveEvent.findById(req.params.id).select('sessions title');
+  const s = event?.sessions.id(req.params.sessionId);
+  if (!s) return res.status(404).json({ message: 'Class not found' });
+  if (req.user.role !== 'admin') {
+    const reg = await Registration.exists({ user: req.user._id, event: event._id, status: 'active' });
+    if (!reg) return res.status(403).json({ message: 'Only confirmed students can join this class' });
+  }
+  if (!s.joinUrl) return res.status(404).json({ message: 'The class link isn’t ready yet. Try again in a minute or check the WhatsApp group.' });
+  if (req.user.role !== 'admin' && !isJoinOpen(s)) {
+    const { opens } = joinWindow(s);
+    const when = new Date(opens).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true });
+    return res.status(403).json({ message: Date.now() < opens ? `Join opens at ${when}` : 'This class has ended. Watch the recording when it’s up.' });
+  }
+  res.json({ url: s.joinUrl });
+}));
+
+// ─────────────────────────────────────────────────────────
+// MEET LINK PER CLASS (admin)
+// ─────────────────────────────────────────────────────────
+const meetView = async (event) => {
+  const upcoming = event.sessions.filter(s => !meetLinks.ended(s));
+  const settings = await Settings.get();
+  return {
+    connected: googleConnected(),
+    enabled: Boolean(event.meetAuto?.enabled),
+    defaultForNew: settings.meetLinkPerClassForNew !== false,
+    upcoming: upcoming.length,
+    portalLinks: upcoming.filter(s => s.autoMeet?.eventId).length,
+    ownLinks: upcoming.filter(s => s.joinUrl && !s.autoMeet?.eventId).length,
+    noLink: upcoming.filter(s => !s.joinUrl).length,
+    sharedOwnLink: (() => {   // one link you typed in, reused by several classes
+      const own = upcoming.filter(s => s.joinUrl && !s.autoMeet?.eventId).map(s => s.joinUrl);
+      return own.length > 1 && new Set(own).size < own.length;
+    })(),
+    lastRun: event.meetAuto?.lastRun?.at ? event.meetAuto.lastRun : null,
+  };
+};
 
 router.get('/:id/meet', protect, adminOnly, asyncHandler(async (req, res) => {
   const event = await LiveEvent.findById(req.params.id);
@@ -820,37 +864,23 @@ router.get('/:id/meet', protect, adminOnly, asyncHandler(async (req, res) => {
   res.json(await meetView(event));
 }));
 
-// Body: { enabled?, calendarRef? }  calendarRef: event link or id; "" = find it from the Meet link
+// Body: { enabled?, replaceOwn? }  replaceOwn: also give classes that have your own
+// link (e.g. one shared link) their own link. Runs right away when on.
 router.put('/:id/meet', protect, adminOnly, asyncHandler(async (req, res) => {
   const event = await LiveEvent.findById(req.params.id);
   if (!event) return res.status(404).json({ message: 'Event not found' });
-  if (req.body.calendarRef !== undefined) {
-    const raw = String(req.body.calendarRef || '').trim();
-    const id = meet.parseEventRef(raw);
-    if (raw && !id) return res.status(400).json({ message: 'That doesn’t look like a Google Calendar event link. Open the event in Google Calendar and copy the address from the browser, or leave it blank to find it from the Meet link.' });
-    if (id !== event.meetSync.calendarEventId) event.meetSync.managedEmails = [];   // different meeting: start fresh
-    event.meetSync.calendarEventId = id;
-  }
-  if (req.body.enabled !== undefined) event.meetSync.enabled = Boolean(req.body.enabled);
-  await event.save();
-
-  let sync = null;
-  if (event.meetSync.enabled) {
-    if (!meet.isConfigured()) {
-      return res.status(400).json({ message: 'Saved, but Google Calendar isn’t connected on the server yet, so nothing was synced. See the setup steps.', ...(await meetView(event)) });
+  if (req.body.enabled !== undefined) {
+    if (req.body.enabled && !googleConnected()) {
+      return res.status(400).json({ message: 'Google Calendar isn’t connected on the server yet (GOOGLE_CAL_… settings on Render).', ...(await meetView(event)) });
     }
-    try { sync = await meet.syncEvent(event._id); }
-    catch (e) { return res.status(400).json({ message: e.message, ...(await meetView(await LiveEvent.findById(event._id))) }); }
+    event.meetAuto.enabled = Boolean(req.body.enabled);
+    await event.save();
   }
-  res.json({ message: sync ? sync.message : 'Meet guest list switched off. Guests already invited stay on the invite.', ...(await meetView(await LiveEvent.findById(event._id))) });
-}));
-
-router.post('/:id/meet/sync', protect, adminOnly, asyncHandler(async (req, res) => {
-  const event = await LiveEvent.findById(req.params.id);
-  if (!event) return res.status(404).json({ message: 'Event not found' });
-  if (!event.meetSync?.enabled) return res.status(400).json({ message: 'Switch on the Meet guest list for this program first' });
+  if (!event.meetAuto.enabled) {
+    return res.json({ message: 'Meet link per class is off. Existing links stay on the classes and keep working.', ...(await meetView(event)) });
+  }
   try {
-    const r = await meet.syncEvent(event._id);
+    const r = await meetLinks.ensureLinks(event._id, { replaceOwn: Boolean(req.body.replaceOwn) });
     res.json({ message: r.message, ...(await meetView(await LiveEvent.findById(event._id))) });
   } catch (e) {
     res.status(400).json({ message: e.message, ...(await meetView(await LiveEvent.findById(event._id))) });

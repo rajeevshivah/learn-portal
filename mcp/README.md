@@ -104,7 +104,7 @@ not ones on your computer. This server runs on your computer, so use Codex for G
 | Webinars | list_events, get_event, create_event, update_event, delete_event, upload_event_thumbnail |
 | Classes | add_class, add_classes_bulk, update_class, set_join_link_for_classes, remove_class, set_class_recording |
 | Registrations | list_registrations, list_pending_registrations, approve_registration, reject_registration, toggle_attendance, find_registration, transfer_registration, cancel_registration |
-| Meet guest list | get_meet_guests, set_meet_guests, sync_meet_guests |
+| Meet links | get_meet_links, set_meet_links |
 | Feedback & testimonials | get_event_feedback, list_feedback, feature_testimonial, hide_feedback, get_public_rating |
 | Courses | list_courses, create_course, update_course, delete_course, upload_course_roadmap_pdf |
 | Lessons | list_lessons, create_lesson, update_lesson, delete_lesson, upload_lesson_notes, delete_lesson_file, add_lesson_link, remove_lesson_link |
@@ -115,6 +115,6 @@ not ones on your computer. This server runs on your computer, so use Codex for G
 | Doubts | list_unanswered_doubts, list_all_doubts, get_doubt_thread, answer_doubt, comment_on_reply, accept_reply, hide_reply, moderate_doubt, delete_doubt |
 | Polls & ideas | list_polls, create_poll, close_poll, reopen_poll, delete_poll, list_topic_suggestions, toggle_suggestion_reviewed, delete_suggestion |
 | Roadmaps & promotions | list_roadmaps, create_roadmap, update_roadmap, upload_roadmap_pdf, delete_roadmap, list_promotions, create_promotion, update_promotion, delete_promotion |
-| Settings | get_payment_settings, update_payment_settings, upload_payment_qr, remove_payment_qr, set_single_device_login |
+| Settings | get_payment_settings, update_payment_settings, upload_payment_qr, remove_payment_qr, set_single_device_login, set_meet_links_default |
 
 When you add a new admin feature to the website, add its tool here too.

@@ -13,6 +13,8 @@ const settingsSchema = new mongoose.Schema({
   // Students stay signed in on one device at a time: a new sign-in signs out the
   // old one, so a shared Google login can't be used side by side. Admins exempt.
   singleDeviceLogin: { type: Boolean, default: true },
+  // New programs start with "Meet link per class" switched on (when Google is connected).
+  meetLinkPerClassForNew: { type: Boolean, default: true },
 }, { timestamps: true });
 
 settingsSchema.statics.get = async function () {

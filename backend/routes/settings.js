@@ -18,6 +18,7 @@ router.put('/', protect, adminOnly, asyncHandler(async (req, res) => {
     if (req.body[f] !== undefined) settings[f] = req.body[f];
   });
   if (req.body.singleDeviceLogin !== undefined) settings.singleDeviceLogin = Boolean(req.body.singleDeviceLogin);
+  if (req.body.meetLinkPerClassForNew !== undefined) settings.meetLinkPerClassForNew = Boolean(req.body.meetLinkPerClassForNew);
   await settings.save();
   require('../middleware/auth').forgetSettings();
   res.json(settings);

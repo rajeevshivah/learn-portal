@@ -1,14 +1,13 @@
 #!/usr/bin/env node
 /**
- * One-time setup for the Meet guest list: gets a Google Calendar refresh token
+ * One-time setup for "Meet link per class": gets a Google Calendar refresh token
  * for the account that owns your class meetings (rajeev@rajeevshivah.me).
  *
  *   cd backend
  *   node scripts/google-calendar-token.js <CLIENT_ID> <CLIENT_SECRET>
  *
- * It opens nothing by itself: copy the link it prints into the browser where
- * that Google account is signed in, allow access, and the token is printed
- * here. Put the three values on Render (Environment):
+ * It opens the Google permission page in your browser (or prints the link to
+ * copy). Choose the class account, allow access, and the token is printed here. Put the three values on Render (Environment):
  *   GOOGLE_CAL_CLIENT_ID, GOOGLE_CAL_CLIENT_SECRET, GOOGLE_CAL_REFRESH_TOKEN
  *
  * The OAuth client must be type "Desktop app", in a Google Cloud project where
@@ -16,6 +15,7 @@
  */
 const http = require('http');
 const crypto = require('crypto');
+const { exec } = require('child_process');
 
 const [clientId, clientSecret] = process.argv.slice(2).map(s => String(s || '').trim());
 if (!clientId || !clientSecret) {
@@ -76,9 +76,14 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, '127.0.0.1', () => {
-  console.log('\n1. Open this link in the browser where your class Google account is signed in:\n');
+  // Open the browser ourselves: a long link copied from a wrapped terminal line gets cut.
+  const open = process.platform === 'win32' ? `start "" "${authUrl}"`
+    : process.platform === 'darwin' ? `open "${authUrl}"` : `xdg-open "${authUrl}"`;
+  exec(open, () => {});
+  console.log('\n1. Your browser should open Google’s permission page now.');
+  console.log('   If it doesn’t, copy this link (all of it, it’s one line) into the browser:\n');
   console.log(authUrl);
-  console.log('\n2. Pick that account and allow access to its calendar events.');
+  console.log('\n2. Pick your class account and allow access to its calendar events.');
   console.log('   If Google warns the app is unverified: Advanced → Go to … (it is your own app).\n');
   console.log(`Waiting on ${REDIRECT} …`);
 });

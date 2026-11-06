@@ -20,6 +20,16 @@ const sessionSchema = new mongoose.Schema({
   },
   // PDF of the whiteboard used in this class (published from the Whiteboard)
   notesUrl: { type: String, default: '' },
+  // Set when the portal made this class's Meet link (its Google Calendar event).
+  // Server-owned: never taken from the edit form. Never sent to students.
+  autoMeet: {
+    type: new mongoose.Schema({
+      eventId: { type: String, default: '' },   // Google Calendar event id
+      url:     { type: String, default: '' },   // the Meet link we made
+      synced:  { type: String, default: '' },   // title/time last written to Google
+    }, { _id: false }),
+    default: undefined,
+  },
 }, { _id: true });
 
 const liveEventSchema = new mongoose.Schema({
@@ -79,22 +89,14 @@ const liveEventSchema = new mongoose.Schema({
   // Once registration closes, only registered students (and admins) can see it.
   hideWhenClosed: { type: Boolean, default: true },
 
-  // ── Google Meet guest list ──
-  // When on, every confirmed student's email is kept on the guest list of the
-  // Google Calendar event that holds the class Meet link. With the meeting's
-  // access set to "Trusted", only guests join directly; a forwarded link has
-  // to ask to join. Managed only through /api/events/:id/meet (never the form).
-  meetSync: {
-    enabled:         { type: Boolean, default: false },
-    calendarEventId: { type: String, default: '' },     // series id; found from the Meet link if blank
-    managedEmails:   { type: [String], default: [] },   // guests WE added; others on the invite are left alone
-    lastSync: {
+  // ── A fresh Google Meet link for every class (utils/meetLinks.js) ──
+  // Managed only through /api/events/:id/meet, never by the edit form.
+  meetAuto: {
+    enabled: { type: Boolean, default: false },
+    lastRun: {
       at:      { type: Date, default: null },
       ok:      { type: Boolean, default: null },
       message: { type: String, default: '' },
-      guests:  { type: Number, default: 0 },
-      added:   { type: Number, default: 0 },
-      removed: { type: Number, default: 0 },
     },
   },
 }, { timestamps: true });

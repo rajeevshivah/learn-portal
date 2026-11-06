@@ -1,4 +1,4 @@
-# Seat changes, Meet guest list, one device at a time
+# Seat changes, Meet link per class, one device at a time
 
 Added 6 Nov 2026.
 
@@ -20,34 +20,38 @@ Each confirmed or pending registration now has **Move to email** and **Cancel se
 Student says "I paid but can't see my registration": search their payment id or phone in
 the registrations page (or ask Claude: `find_registration`). It shows which email they used.
 
-## 2. Meet guest list (Admin → Live & Workshops → 🔒 Meet guests)
+## 2. Meet link per class (Admin → Live & Workshops → 🔗 Meet links)
 
-Keeps every confirmed student on the guest list of the Google Calendar event that holds the
-class Meet link. Updated automatically on every payment, approval, move, cancel and refund.
-Guests are added silently (no email per student). Only guests the portal added are ever
-removed; co-hosts you invited yourself are left alone.
+Every upcoming class gets its own Google Meet, made automatically as an event in your
+Google Calendar (no guests, nobody is emailed). If a student forwards a link, it only works
+for that one class.
 
-**Then, in Google Meet, set the meeting's access to "Trusted"** (Host controls → Meeting access).
-Invited guests join directly; anyone with a forwarded link has to ask to join, and you can deny.
-Students must join with the Google account they registered with.
+- Links are made the moment you create a program or add/edit classes: the server is awake
+  then, so nothing depends on a timer (works on Render's free plan).
+- Move or rename a class → its calendar event moves too, same link.
+  Delete a class or a program → its calendar event is deleted.
+  Clear a class's link → a new meeting is made.
+- Type your own link on a class → the portal leaves that class alone (and deletes the
+  meeting it had made for it).
+- For a program that already uses one shared link, press **Give each its own link** once.
+- **Students only get a class's link from 15 minutes before it starts** (until 15 minutes
+  after it ends). Before that the server doesn't send it at all, so links can't be
+  collected in advance. The Join button fetches the link when clicked.
+- New programs start with this on (Admin → Settings → Class Meet links).
+- Switching it off keeps the links already made; they keep working.
 
-### One-time setup (about 10 minutes)
+Why not a guest list: Google blocks adding hundreds of outside guests to an event
+("Calendar usage limits exceeded"), so the earlier guest-list approach was removed.
 
-1. Google Cloud Console → the project used for "Sign in with Google" → **APIs & Services →
-   Library** → enable **Google Calendar API**.
-2. **APIs & Services → Credentials → Create credentials → OAuth client ID → Desktop app.**
-   Copy the client ID and secret.
-3. **OAuth consent screen**: if the publishing status is "Testing", click **Publish app**.
-   (In Testing, Google expires the permission after 7 days.)
-4. On your laptop, in `backend`:
-   `node scripts/google-calendar-token.js <CLIENT_ID> <CLIENT_SECRET>`
-   Open the link it prints, choose **rajeev@rajeevshivah.me** (the account that owns the class
-   meeting), allow access. It prints three lines.
-5. Render → backend → Environment: add `GOOGLE_CAL_CLIENT_ID`, `GOOGLE_CAL_CLIENT_SECRET`,
-   `GOOGLE_CAL_REFRESH_TOKEN`. Save (Render redeploys).
-6. Admin → Live & Workshops → 🔒 Meet guests → switch **On**. The portal finds the calendar
-   event from the Meet link on the classes; if it can't, paste the event's link from Google
-   Calendar.
+### One-time Google setup (done 7 Nov 2026)
+
+1. Google Cloud Console → project → enable **Google Calendar API**.
+2. Google Auth Platform → **Clients → Create client → Desktop app**.
+3. Audience: Internal, or External and **Publish app** (Testing expires after 7 days).
+4. In `backend`: `node scripts/google-calendar-token.js <CLIENT_ID> <CLIENT_SECRET>`,
+   choose the account that hosts the classes, allow.
+5. Render → backend → Environment: `GOOGLE_CAL_CLIENT_ID`, `GOOGLE_CAL_CLIENT_SECRET`,
+   `GOOGLE_CAL_REFRESH_TOKEN`.
 
 ## 3. One device at a time (Admin → Settings → Student sign-in)
 
@@ -58,5 +62,6 @@ student's sessions.
 
 ## MCP tools
 
-find_registration, transfer_registration, cancel_registration, get_meet_guests,
-set_meet_guests, sync_meet_guests, sign_out_student, set_single_device_login.
+find_registration, transfer_registration, cancel_registration, get_meet_links,
+set_meet_links, set_meet_links_default, sign_out_student, set_single_device_login.
+
