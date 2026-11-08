@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import Cover from '../components/Cover';
 import { useAuth } from '../context/AuthContext';
 
 const API = import.meta.env.VITE_API_URL;
@@ -36,32 +37,20 @@ export default function Courses() {
             {courses.filter(c => c.episodeCount > 0 || myMap[String(c._id)]).map(course => {
               const status = myMap[String(course._id)];
               return (
-                <Link key={course._id} to={`/courses/${course.slug}`} className="card card-hover" style={{ color: 'inherit', display: 'flex', flexDirection: 'column' }}>
-                  {course.thumbnail && (
-                    <img src={course.thumbnail} alt="" style={{ borderRadius: 8, marginBottom: 12, aspectRatio: '16/9', objectFit: 'cover' }} />
-                  )}
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-                    <span className="badge badge-muted">{course.level}</span>
-                    <span className="badge badge-muted">{course.episodeCount} {course.episodeCount === 1 ? 'lesson' : 'lessons'}</span>
-                    {status === 'active' && <span className="badge badge-success">Enrolled</span>}
-                    {status === 'pending' && <span className="badge badge-warning">Verifying</span>}
-                  </div>
-                  <h3 style={{ fontSize: 16, marginBottom: 6 }}>{course.title}</h3>
-                  <p className="small muted" style={{ flex: 1, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                    {course.description}
-                  </p>
-                  <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    {course.isPaid ? (
-                      <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18 }}>
-                        ₹{course.price}
-                        {course.mrp > course.price && (
-                          <span className="small muted" style={{ textDecoration: 'line-through', marginLeft: 8, fontWeight: 400 }}>₹{course.mrp}</span>
-                        )}
+                <Link key={course._id} to={`/courses/${course.slug}`} className="rail-card cs-card">
+                  <Cover course={course} />
+                  <div className="rail-body">
+                    <div className="rail-title">{course.title}</div>
+                    <p className="cs-desc">{course.description}</p>
+                    <div className="cs-foot">
+                      <span className="db-meta">
+                        {course.level} · {course.episodeCount} {course.episodeCount === 1 ? 'lesson' : 'lessons'}
+                        {status === 'active' ? ' · Enrolled' : status === 'pending' ? ' · Verifying payment' : ''}
                       </span>
-                    ) : (
-                      <span className="badge badge-accent">Free</span>
-                    )}
-                    <span className="small" style={{ color: 'var(--accent)', fontWeight: 600 }}>View →</span>
+                      <span className="cs-price">
+                        {course.isPaid ? <>₹{course.price}{course.mrp > course.price && <s>₹{course.mrp}</s>}</> : 'Free'}
+                      </span>
+                    </div>
                   </div>
                 </Link>
               );

@@ -183,7 +183,7 @@ export default function EventDetail() {
             <div className="ed-hero-main">
               <div className="ed-chips">
                 <span className="badge badge-accent">
-                  {event.type === 'workshop' ? '🎯 Workshop' : '🎥 Live class'}
+                  {event.type === 'workshop' ? 'Workshop' : 'Live class'}
                 </span>
                 {multi && <span className="badge badge-muted">{dayCount} days</span>}
                 {event.course && (
@@ -191,7 +191,7 @@ export default function EventDetail() {
                     {event.course.title}
                   </Link>
                 )}
-                {isActive   && <span className="badge badge-success">✓ You're registered</span>}
+                {isActive   && <span className="badge badge-success">You’re registered</span>}
                 {isPending  && <span className="badge badge-warning">Payment under review</span>}
               </div>
 
@@ -205,7 +205,6 @@ export default function EventDetail() {
               <div className="ed-facts">
                 {firstSession && (
                   <div className="ed-fact">
-                    <span className="ed-fact-ico">📅</span>
                     <div>
                       <div className="ed-fact-label">Starts</div>
                       <div className="ed-fact-value">{fmtShort(firstSession.startsAt)}</div>
@@ -213,7 +212,6 @@ export default function EventDetail() {
                   </div>
                 )}
                 <div className="ed-fact">
-                  <span className="ed-fact-ico">🗓️</span>
                   <div>
                     <div className="ed-fact-label">Format</div>
                     <div className="ed-fact-value">{dayCount} {dayCount === 1 ? 'session' : 'sessions'}, live</div>
@@ -221,7 +219,6 @@ export default function EventDetail() {
                 </div>
                 {confirmedCount !== null && confirmedCount > 0 && (
                   <div className="ed-fact">
-                    <span className="ed-fact-ico">🔥</span>
                     <div>
                       <div className="ed-fact-label">Already joined</div>
                       <div className="ed-fact-value">{confirmedCount} students</div>
@@ -276,9 +273,7 @@ export default function EventDetail() {
               <div className="ed-buy card-hover">
                 {event.thumbnail
                   ? <img className="ed-buy-thumb" src={event.thumbnail} alt={event.title} />
-                  : <div className="ed-buy-thumb ed-buy-thumb--empty">
-                      {event.type === 'workshop' ? '🎯' : '🎥'}
-                    </div>}
+                  : <div className="ed-buy-thumb ed-buy-thumb--empty"><span>{event.type === 'workshop' ? 'Workshop' : 'Live class'}</span><strong>{(event.title || '').split(/[:—–]/)[0].trim()}</strong></div>}
 
                 <div className="ed-buy-body">
                   <div className="ed-price-row">
@@ -298,7 +293,7 @@ export default function EventDetail() {
                   </div>
 
                   {seatsLow && (
-                    <div className="ed-seats ed-seats--low">🔥 Only {event.seatsLeft} seats left</div>
+                    <div className="ed-seats ed-seats--low">Only {event.seatsLeft} seats left</div>
                   )}
                   {seatsFull && !isActive && (
                     <div className="ed-seats ed-seats--full">All seats are full</div>
@@ -319,7 +314,7 @@ export default function EventDetail() {
                     </a>
                   ) : event.registrationOpen ? (
                     <button className="btn btn-primary btn-block ed-cta" onClick={scrollToRegister} style={{ marginTop: 4 }}>
-                      {event.isPaid ? `Register for ₹${event.price} →` : 'Register free →'}
+                      {event.isPaid ? `Register for ₹${event.price}` : 'Register free'}
                     </button>
                   ) : (
                     <button className="btn btn-ghost btn-block" disabled style={{ marginTop: 4 }}>
@@ -353,7 +348,7 @@ export default function EventDetail() {
                 borderLeft: `3px solid var(--${isActive ? 'success' : 'warning'})`,
               }}>
                 <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>
-                  {isActive ? '✅ You are registered' : '⏳ Payment submitted'}
+                  {isActive ? 'You’re registered' : 'Payment submitted'}
                 </div>
                 <p className="small" style={{ lineHeight: 1.65, marginBottom: 14, color: 'var(--text-2)' }}>
                   {reply?.message || event.confirmationMsg}
@@ -464,7 +459,7 @@ export default function EventDetail() {
                         <div className="small muted" style={{ marginTop: 6 }}>Recording coming soon</div>
                       )}
                       {!isActive && s.hasRecording && (
-                        <div className="small muted" style={{ marginTop: 6 }}>🎥 Recording available to registered students</div>
+                        <div className="small muted" style={{ marginTop: 6 }}>Recording available to registered students</div>
                       )}
                     </div>
                   </div>
@@ -568,7 +563,7 @@ export default function EventDetail() {
                       </p>
                       <button className="btn btn-primary btn-block ed-cta"
                         disabled={submitting} onClick={payOnline}>
-                        {submitting ? 'Opening secure payment…' : `Pay ₹${event.price} & register →`}
+                        {submitting ? 'Opening secure payment…' : `Pay ₹${event.price} and register`}
                       </button>
                       <RefundNote classes={event.sessions?.length || 1} />
                       <p className="small muted" style={{ textAlign: 'center' }}>
@@ -592,7 +587,7 @@ export default function EventDetail() {
                         disabled={submitting} onClick={submit}>
                         {submitting
                           ? 'Submitting…'
-                          : event.isPaid ? `Submit payment & register` : 'Register free →'}
+                          : event.isPaid ? `Submit payment & register` : 'Register free'}
                       </button>
                       {event.isPaid && <RefundNote classes={event.sessions?.length || 1} />}
                       {event.isPaid && rzpOn && (
@@ -632,7 +627,7 @@ export default function EventDetail() {
             ) : <span className="ed-price ed-price--free" style={{ fontSize: 20 }}>Free</span>}
           </div>
           <button className="btn btn-primary ed-cta" onClick={scrollToRegister}>
-            {event.isPaid ? 'Register →' : 'Register free →'}
+            {event.isPaid ? 'Register' : 'Register free'}
           </button>
         </div>
       )}

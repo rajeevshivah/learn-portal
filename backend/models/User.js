@@ -17,6 +17,25 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
+  // Mobile number, digits only (10 digits, India). Students can sign in with it.
+  phone: {
+    type: String,
+    default: '',
+    trim: true,
+    index: true,
+  },
+  // Set when the student signed up with the form (bcrypt hash). Google-only accounts have none.
+  password: {
+    type: String,
+    default: '',
+    select: false,
+  },
+  // Forgot-password code (hash), valid for a short while
+  reset: {
+    type: { hash: String, expiresAt: Date, tries: Number },
+    default: null,
+    select: false,
+  },
   googleId: {
     type: String,
     default: '',

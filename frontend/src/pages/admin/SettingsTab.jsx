@@ -100,6 +100,8 @@ export default function SettingsTab() {
   const [uploadingQr, setUploadingQr] = useState(false);
   const [singleDevice, setSingleDevice] = useState(null);   // null until loaded
   const [meetDefault, setMeetDefault] = useState(null);
+  const [pwSignup, setPwSignup] = useState(null);
+  const [mailOn, setMailOn] = useState(false);
 
   useEffect(() => {
     axios.get(`${API}/settings`).then(({ data }) => {
@@ -107,6 +109,8 @@ export default function SettingsTab() {
       setQrUrl(data.paymentQrUrl || '');
       setSingleDevice(data.singleDeviceLogin !== false);
       setMeetDefault(data.meetLinkPerClassForNew !== false);
+      setPwSignup(data.passwordSignup !== false);
+      setMailOn(Boolean(data.mailEnabled));
     }).catch(() => setToast('Could not load settings'));
   }, []);
 
@@ -159,6 +163,17 @@ export default function SettingsTab() {
     }
   };
 
+  const togglePwSignup = async (on) => {
+    setPwSignup(on);
+    try {
+      await axios.put(`${API}/settings`, { passwordSignup: on });
+      setToast(on ? 'Students can sign up with mobile + password' : 'Sign-up is Google only now');
+    } catch (err) {
+      setPwSignup(!on);
+      setToast(err.response?.data?.message || 'Could not save');
+    }
+  };
+
   const toggleMeetDefault = async (on) => {
     setMeetDefault(on);
     try {
@@ -203,11 +218,29 @@ export default function SettingsTab() {
             <strong style={{ color: 'var(--text)' }}>One device at a time</strong><br />
             <span className="small muted">
               Signing in on a new phone or laptop signs the student out of the previous one, so one paid account
-              can’t be used by two people side by side. Students switching devices just sign in again with Google.
+              can’t be used by two people side by side. Students switching devices just sign in again.
               Admin accounts are never affected.
             </span>
           </span>
         </label>
+        <label className="checkbox-row" style={{ alignItems: 'flex-start', marginTop: 14 }}>
+          <input type="checkbox" checked={Boolean(pwSignup)} disabled={pwSignup === null}
+            onChange={e => togglePwSignup(e.target.checked)} style={{ marginTop: 2 }} />
+          <span>
+            <strong style={{ color: 'var(--text)' }}>Sign-up with mobile + password</strong><br />
+            <span className="small muted">
+              Besides Google, students can sign up with name, mobile, email and a password of their choice, and sign in with
+              email or mobile. Their details are shown once on screen to screenshot{mailOn ? ' and emailed to them' : ''}.
+              You can reset any student’s password under Students.
+            </span>
+          </span>
+        </label>
+        {!mailOn && (
+          <p className="small" style={{ marginTop: 12, color: 'var(--warning)' }}>
+            Email is not set up, so welcome mails and “Forgot password” codes can’t be sent. Add MAIL_USER and MAIL_PASS
+            (a Google App password for rajeev@rajeevshivah.me) in Render → Environment. Until then, reset passwords from Students.
+          </p>
+        )}
       </div>
 
       {/* ── Class Meet links ── */}

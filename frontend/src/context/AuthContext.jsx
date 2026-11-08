@@ -42,15 +42,25 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  // Called after Google login — credential = token from Google
-  const loginWithGoogle = async (credential) => {
-    const res = await axios.post(`${API}/auth/google`, { credential });
-    const { token, ...userData } = res.data;
+  // Store the token from any sign-in response and make the user current
+  const applyAuth = (data) => {
+    const { token, ...userData } = data;
     localStorage.setItem('token', token);
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     setUser(userData);
     return userData;
   };
+
+  // Called after Google login — credential = token from Google
+  const loginWithGoogle = async (credential) => applyAuth((await axios.post(`${API}/auth/google`, { credential })).data);
+  // Email or mobile + password
+  const loginWithPassword = async (id, password) => applyAuth((await axios.post(`${API}/auth/login`, { id, password })).data);
+  // Name + mobile + email + password → account made. Not signed in yet: the login
+  // page shows the details to save first, then calls finishSignIn().
+  const register = async (form) => (await axios.post(`${API}/auth/register`, form)).data;
+  const finishSignIn = (data) => applyAuth(data);
+  // After a password reset the server signs them in too
+  const resetPassword = async (id, code, password) => applyAuth((await axios.post(`${API}/auth/reset`, { id, code, password })).data);
 
   const logout = () => {
     localStorage.removeItem('token');
@@ -59,7 +69,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, loginWithGoogle, logout }}>
+    <AuthContext.Provider value={{ user, loading, loginWithGoogle, loginWithPassword, register, finishSignIn, resetPassword, logout }}>
       {children}
     </AuthContext.Provider>
   );

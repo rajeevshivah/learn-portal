@@ -61,9 +61,10 @@ export default function LivePublic() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Send them to Google login, then bounce back to the real event page to register
+  // New students: create an account (Google, or mobile + password), then land on the
+  // real event page to register. Existing students use the "Sign in" link instead.
   const goRegister = () => {
-    navigate(`/login?redirect=${encodeURIComponent(`/events/${slug}`)}`);
+    navigate(`/login?mode=signup&redirect=${encodeURIComponent(`/events/${slug}`)}`);
   };
 
   if (authLoading || loading) return <div className="spinner-page">Loading…</div>;
@@ -154,7 +155,7 @@ export default function LivePublic() {
             <div className="ed-hero-main">
               <div className="ed-chips">
                 <span className="badge badge-accent">
-                  {event.type === 'workshop' ? '🎯 Workshop' : '🎥 Live class'}
+                  {event.type === 'workshop' ? 'Workshop' : 'Live class'}
                 </span>
                 {multi && <span className="badge badge-muted">{dayCount} days</span>}
                 {event.isPaid
@@ -169,7 +170,6 @@ export default function LivePublic() {
               <div className="ed-facts">
                 {firstSession && (
                   <div className="ed-fact">
-                    <span className="ed-fact-ico">📅</span>
                     <div>
                       <div className="ed-fact-label">Starts</div>
                       <div className="ed-fact-value">{fmtShort(firstSession.startsAt)}</div>
@@ -177,7 +177,6 @@ export default function LivePublic() {
                   </div>
                 )}
                 <div className="ed-fact">
-                  <span className="ed-fact-ico">🗓️</span>
                   <div>
                     <div className="ed-fact-label">Format</div>
                     <div className="ed-fact-value">{dayCount} {dayCount === 1 ? 'session' : 'sessions'}, live</div>
@@ -191,9 +190,7 @@ export default function LivePublic() {
               <div className="ed-buy card-hover">
                 {event.thumbnail
                   ? <img className="ed-buy-thumb" src={event.thumbnail} alt={event.title} />
-                  : <div className="ed-buy-thumb ed-buy-thumb--empty">
-                      {event.type === 'workshop' ? '🎯' : '🎥'}
-                    </div>}
+                  : <div className="ed-buy-thumb ed-buy-thumb--empty"><span>{event.type === 'workshop' ? 'Workshop' : 'Live class'}</span><strong>{(event.title || '').split(/[:—–]/)[0].trim()}</strong></div>}
 
                 <div className="ed-buy-body">
                   <div className="ed-price-row">
@@ -212,7 +209,7 @@ export default function LivePublic() {
                     )}
                   </div>
 
-                  {seatsLow && <div className="ed-seats ed-seats--low">🔥 Only {event.seatsLeft} seats left</div>}
+                  {seatsLow && <div className="ed-seats ed-seats--low">Only {event.seatsLeft} seats left</div>}
                   {seatsFull && <div className="ed-seats ed-seats--full">All seats are full</div>}
                   {!seatsLow && !seatsFull && event.seatLimit > 0 && typeof event.seatsLeft === 'number' && (
                     <div className="ed-seats">{event.seatsLeft} seats available</div>
@@ -220,7 +217,7 @@ export default function LivePublic() {
 
                   {isOpen ? (
                     <button className="btn btn-primary btn-block ed-cta" onClick={goRegister} style={{ marginTop: 4 }}>
-                      {event.isPaid ? `Register for ₹${event.price} →` : 'Register free →'}
+                      {event.isPaid ? `Register for ₹${event.price}` : 'Register free'}
                     </button>
                   ) : (
                     <button className="btn btn-ghost btn-block" disabled style={{ marginTop: 4 }}>
@@ -279,8 +276,8 @@ export default function LivePublic() {
                   <span className="badge badge-warning">₹{event.price}</span>
                 </div>
                 <p className="small muted" style={{ lineHeight: 1.65 }}>
-                  Sign in with Google, then pay securely via Razorpay — UPI, cards, netbanking or wallets.
-                  International cards accepted. Your seat and the WhatsApp group link are confirmed instantly.
+                  Create a free account (Google, or your mobile number and a password), then pay through Razorpay: UPI, cards,
+                  netbanking or wallets. Your seat and the WhatsApp group link are confirmed instantly.
                 </p>
               </div>
             )}
@@ -303,7 +300,7 @@ export default function LivePublic() {
                       UPI: <strong style={{ color: 'var(--accent)', userSelect: 'all' }}>{event.payment.upiId}</strong>
                     </p>
                     <p className="small muted" style={{ marginTop: 6, maxWidth: 380, marginInline: 'auto' }}>
-                      Sign in to register and submit your payment — you'll get the WhatsApp group link after verification.
+                      Create a free account to register and submit your payment. You get the WhatsApp group link after verification.
                     </p>
                   </div>
                 </div>
@@ -321,11 +318,11 @@ export default function LivePublic() {
                   </h2>
                   <p className="small muted" style={{ marginBottom: 16 }}>
                     {event.isPaid
-                      ? 'Sign in to register for this session.'
-                      : 'Sign in to grab your free seat — takes 5 seconds.'}
+                      ? 'A free account takes a minute: Google, or your mobile number and a password.'
+                      : 'A free account takes a minute: Google, or your mobile number and a password.'}
                   </p>
                   <button className="btn btn-primary btn-block ed-cta" onClick={goRegister}>
-                    {event.isPaid ? `Register — ₹${event.price} →` : 'Register free →'}
+                    {event.isPaid ? `Register for ₹${event.price}` : 'Register free'}
                   </button>
                   <p className="small muted" style={{ marginTop: 12, textAlign: 'center' }}>
                     Already have an account? <Link to={loginHref}>Sign in</Link>
@@ -353,7 +350,7 @@ export default function LivePublic() {
             ) : <span className="ed-price ed-price--free" style={{ fontSize: 20 }}>Free</span>}
           </div>
           <button className="btn btn-primary ed-cta" onClick={goRegister}>
-            {event.isPaid ? 'Register →' : 'Register free →'}
+            {event.isPaid ? 'Register' : 'Register free'}
           </button>
         </div>
       )}

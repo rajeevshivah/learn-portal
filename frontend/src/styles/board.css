@@ -2,10 +2,15 @@
    The board is the only bright thing on screen; every control sits in the
    dark margin around it so a Meet screen-share shows the writing, not the UI. */
 
-.wb-root {
+.wb-root, .wb-error {
+  /* The board tool stays dark whatever the app theme: its own tokens */
   --wb-edge: #060911;
   --wb-panel: rgba(17, 24, 42, 0.94);
   --wb-line: #222D4A;
+  --bg: #0B1020; --surface: #121A2E; --surface-2: #1A2440; --border: #24304F; --border-hi: #33436E;
+  --text: #EDF1F7; --text-2: #9AA7BF; --text-3: #64748B;
+  --accent: #4A9EFF; --accent-soft: rgba(74, 158, 255, 0.12); --accent-ink: #06101F;
+  --warning: #FBBF24; --danger: #F87171; --success: #34D399;
   position: fixed; inset: 0; z-index: 100;
   display: grid; grid-template-rows: 48px 1fr 52px;
   background: var(--wb-edge); color: var(--text);

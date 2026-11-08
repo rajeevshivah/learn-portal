@@ -8,7 +8,7 @@ const { uploadImage } = require('../config/cloudinary');
 // ── ADMIN: read settings ─────────────────────────────────
 router.get('/', protect, adminOnly, asyncHandler(async (req, res) => {
   const settings = await Settings.get();
-  res.json(settings);
+  res.json({ ...settings.toObject(), mailEnabled: require('../utils/mailer').enabled() });
 }));
 
 // ── ADMIN: update settings ───────────────────────────────
@@ -19,6 +19,7 @@ router.put('/', protect, adminOnly, asyncHandler(async (req, res) => {
   });
   if (req.body.singleDeviceLogin !== undefined) settings.singleDeviceLogin = Boolean(req.body.singleDeviceLogin);
   if (req.body.meetLinkPerClassForNew !== undefined) settings.meetLinkPerClassForNew = Boolean(req.body.meetLinkPerClassForNew);
+  if (req.body.passwordSignup !== undefined) settings.passwordSignup = Boolean(req.body.passwordSignup);
   await settings.save();
   require('../middleware/auth').forgetSettings();
   res.json(settings);

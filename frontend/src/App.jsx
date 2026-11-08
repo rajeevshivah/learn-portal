@@ -6,6 +6,7 @@ import { trackPageView } from './lib/analytics';
 import Navbar, { PublicBar } from './components/Navbar';
 import Home           from './pages/Home';
 import Login          from './pages/Login';
+import Account        from './pages/Account';
 import Dashboard      from './pages/Dashboard';
 import Courses        from './pages/Courses';
 import CourseEpisodes from './pages/CourseEpisodes';
@@ -81,6 +82,7 @@ function AppRoutes() {
       <Route path="/discuss/:id" element={<Protected><Thread /></Protected>} />
       <Route path="/episodes/:id" element={<Protected><EpisodeDetail /></Protected>} />
       <Route path="/pay/:slug" element={<Protected><Payment /></Protected>} />
+      <Route path="/account" element={<Protected><Account /></Protected>} />
       <Route path="/events" element={<Protected><Events /></Protected>} />
       <Route path="/events/:slug" element={<Protected><EventDetail /></Protected>} />
 

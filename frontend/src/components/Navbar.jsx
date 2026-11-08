@@ -84,6 +84,10 @@ function MoreSheet({ open, onClose }) {
             Tech news &amp; hackathons
             <span className="sheet-hint">News for your career goal, and events to apply to</span>
           </button>
+          <button className="sheet-item" onClick={() => go('/account')}>
+            Your account
+            <span className="sheet-hint">{user?.hasPassword ? 'Change your password or mobile number' : 'Add a password so you can sign in without Google'}</span>
+          </button>
           <button className="sheet-item" onClick={() => go('/refunds')}>
             Refunds
             <span className="sheet-hint">Ask for a refund, or check one you’ve asked for</span>

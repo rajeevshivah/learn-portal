@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Toast from '../components/Toast';
 
@@ -83,55 +83,39 @@ export default function Events() {
               : 'No past sessions yet.'}
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="ev-list">
             {events.map(ev => {
               const reg = ev.myRegistration;
               const multi = ev.sessions?.length > 1;
+              const d = ev.startsAt ? new Date(ev.startsAt) : null;
               return (
-                <div key={ev._id} className="card card-hover"
-                  style={{ display: 'flex', gap: 16, padding: '16px 18px', cursor: 'pointer', flexWrap: 'wrap' }}
-                  onClick={() => navigate(`/events/${ev.slug}`)}>
-                  {ev.thumbnail && <img className="ev-list-thumb" src={ev.thumbnail} alt="" loading="lazy" />}
-
-                  <div style={{ flex: '1 1 320px', minWidth: 0 }}>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-                      <span className="badge badge-muted">{TYPE_LABEL[ev.type]}</span>
-                      {multi && <span className="badge badge-muted">{ev.sessions.length} days</span>}
-                      {ev.course && <span className="badge badge-muted">{ev.course.title}</span>}
-                      {ev.isPaid
-                        ? <span className="badge badge-warning">₹{ev.price}</span>
-                        : <span className="badge badge-accent">Free</span>}
+                <Link key={ev._id} to={`/events/${ev.slug}`} className="ev-row">
+                  <div className="ev-date" aria-hidden="true">
+                    {d ? <><span className="ev-date-m">{d.toLocaleDateString('en-IN', { month: 'short' })}</span><span className="ev-date-d">{d.getDate()}</span></> : <span className="ev-date-d">—</span>}
+                  </div>
+                  <div className="ev-main">
+                    <div className="ev-title">{ev.title}</div>
+                    <div className="ev-meta">
+                      {TYPE_LABEL[ev.type]}
+                      {multi ? ` · ${ev.sessions.length} classes` : ''}
+                      {d ? ` · ${fmtDate(ev.startsAt)}` : ''}
+                      {multi && ev.endsAt ? ` to ${new Date(ev.endsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : ''}
+                    </div>
+                    {ev.description && <p className="ev-desc">{ev.description}</p>}
+                    <div className="ev-tags">
                       {reg?.status === 'active'  && <span className="badge badge-success">Registered</span>}
                       {reg?.status === 'pending' && <span className="badge badge-warning">Verifying payment</span>}
                       {reg?.status === 'rejected'&& <span className="badge badge-danger">Payment rejected</span>}
+                      {ev.course && <span className="badge badge-muted">{ev.course.title}</span>}
                     </div>
-
-                    <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 4 }}>{ev.title}</div>
-                    {ev.description && (
-                      <p className="small muted" style={{
-                        display: '-webkit-box', WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical', overflow: 'hidden',
-                      }}>{ev.description}</p>
-                    )}
-
-                    {ev.startsAt && (
-                      <div className="small" style={{ marginTop: 8, color: 'var(--text-2)' }}>
-                        📅 {fmtDate(ev.startsAt)}
-                        {multi && ev.endsAt && ` → ${new Date(ev.endsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`}
-                      </div>
-                    )}
                   </div>
-
-                  <div style={{ flex: '0 0 auto', alignSelf: 'center' }}>
-                    {reg?.status === 'active' ? (
-                      <span className="small" style={{ color: 'var(--success)' }}>View details →</span>
-                    ) : ev.registrationOpen ? (
-                      <span className="btn btn-primary btn-sm">Register</span>
-                    ) : (
-                      <span className="badge badge-muted">Closed</span>
-                    )}
+                  <div className="ev-side">
+                    <span className="ev-price">{ev.isPaid ? `₹${ev.price}` : 'Free'}</span>
+                    {reg?.status === 'active' ? <span className="ev-cta muted">Open</span>
+                      : ev.registrationOpen ? <span className="btn btn-primary btn-sm">Register</span>
+                      : <span className="badge badge-muted">Closed</span>}
                   </div>
-                </div>
+                </Link>
               );
             })}
           </div>

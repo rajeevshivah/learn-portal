@@ -16,6 +16,9 @@ const settingsSchema = new mongoose.Schema({
   // New programs start with "Meet link per class" switched on (when Google is connected).
   meetLinkPerClassForNew: { type: Boolean, default: true },
 
+  // Sign-up with name + mobile + email + password (besides Google). Off = Google only.
+  passwordSignup: { type: Boolean, default: true },
+
   // Tech Pass: personal tips in the tech feed. Free for paid students (freeForPaid),
   // otherwise bought for `price` ₹ for `days` days. enabled: false = free for everyone.
   techPass: {

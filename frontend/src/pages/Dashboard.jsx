@@ -145,10 +145,12 @@ export default function Dashboard() {
     .sort((a, b) => new Date(a.startsAt || 0) - new Date(b.startsAt || 0));
 
   const ticketLive = ticket && Date.now() >= new Date(ticket.session.startsAt).getTime();
-  const subtitle = ticketLive ? `Class ${ticket.number} is live now.`
+  const today = now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
+  const subtitle = ticketLive ? `Class ${ticket.number} is live now. Jump in.`
     : ticket && sameDay(ticket.session.startsAt, now)
-    ? `Class ${ticket.number} is today at ${fmtTime(ticket.session.startsAt)}.`
-    : continueCourse ? 'Pick up where you left off.' : 'Here’s everything in one place.';
+    ? `${today}. Class ${ticket.number} is at ${fmtTime(ticket.session.startsAt)}.`
+    : ticket ? `${today}. Next class ${fmtEvent(ticket.session.startsAt)}.`
+    : continueCourse ? `${today}. Pick up where you left off.` : `${today}.`;
 
   const notices = [
     ...pendingRegs.map(r => ({ key: r._id, tone: 'warn', title: `Verifying your payment for ${r.event.title}`, body: 'Your seat is confirmed as soon as it’s verified, usually within a few hours.' })),
@@ -163,13 +165,8 @@ export default function Dashboard() {
 
       <div className="container section db">
         <header className="db-hello">
-          {user.avatar
-            ? <img className="db-hello-avatar" src={user.avatar} alt="" referrerPolicy="no-referrer" />
-            : <span className="db-hello-avatar db-hello-initial" aria-hidden="true">{user.name[0]}</span>}
-          <div>
-            <h1><span lang="hi" className="db-namaste">नमस्ते</span>, {user.name.split(' ')[0]}</h1>
-            <p>{subtitle}</p>
-          </div>
+          <h1><span lang="hi" className="db-namaste">नमस्ते</span>, {user.name.split(' ')[0]}</h1>
+          <p>{subtitle}</p>
         </header>
 
         {notices.length > 0 && (

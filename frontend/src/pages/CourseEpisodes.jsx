@@ -258,7 +258,7 @@ export default function CourseEpisodes() {
                     </div>
                   </div>
                   <span className="small" style={{ color: 'var(--accent)', flexShrink: 0 }}>
-                    {ev.myRegistration?.status === 'active' ? 'View →' : 'Register →'}
+                    {ev.myRegistration?.status === 'active' ? 'Open' : 'Register'}
                   </span>
                 </div>
               ))}
@@ -320,37 +320,27 @@ export default function CourseEpisodes() {
 
         {grouped.map(({ phase, list }) => (
           <div key={phase || 'main'} style={{ marginBottom: 26 }}>
-            {phase && <h2 style={{ fontSize: 15, color: 'var(--text-2)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{phase}</h2>}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {phase && <h2 className="ls-phase">{phase}</h2>}
+            <ol className="ls-list">
               {list.map(ep => {
                 const done = doneSet.has(String(ep._id));
                 return (
-                  <div key={ep._id}
-                    className={`card ${!ep.locked ? 'card-hover' : ''}`}
-                    style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px',
-                             cursor: ep.locked ? 'default' : 'pointer', opacity: ep.locked ? 0.65 : 1 }}
+                  <li key={ep._id} className={`ls-row ${ep.locked ? 'is-locked' : ''} ${done ? 'is-done' : ''}`}
                     onClick={() => !ep.locked && navigate(`/episodes/${ep._id}`)}>
-                    <div style={{
-                      width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: done ? 'var(--success-soft)' : 'var(--surface-2)',
-                      color: done ? 'var(--success)' : 'var(--text-2)',
-                      fontWeight: 700, fontSize: 14,
-                    }}>
-                      {ep.locked ? '🔒' : done ? '✓' : ep.episodeNumber}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14.5 }}>{ep.title}</div>
-                      <div className="small muted" style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <span className="ls-num" aria-hidden="true">{ep.locked ? '🔒' : done ? '✓' : ep.episodeNumber}</span>
+                    <span className="ls-main">
+                      <span className="ls-title">{ep.title}</span>
+                      <span className="ls-meta">
                         {ep.duration && <span>{ep.duration}</span>}
+                        {done && <span>Watched</span>}
                         {ep.isFreePreview && course.isPaid && <span className="badge badge-accent">Free preview</span>}
-                      </div>
-                    </div>
-                    {!ep.locked && <span className="small" style={{ color: 'var(--accent)', flexShrink: 0 }}>Watch →</span>}
-                  </div>
+                      </span>
+                    </span>
+                    {!ep.locked && <span className="ls-go" aria-hidden="true">▶</span>}
+                  </li>
                 );
               })}
-            </div>
+            </ol>
           </div>
         ))}
 

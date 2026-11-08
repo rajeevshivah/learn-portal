@@ -494,15 +494,26 @@ tool('list_online_payments', 'read', 'Razorpay payments for courses and webinars
 // ─────────────────────────────────────────────────────────
 // STUDENTS
 // ─────────────────────────────────────────────────────────
-tool('search_students', 'read', 'Find students by name or email; shows their course enrollments and webinar registrations.',
+tool('search_students', 'read', 'Find students by name, email or mobile number; shows their course enrollments and webinar registrations, and whether they sign in with Google or a password.',
   { search: z.string().default('') }, async ({ search }) => {
     const rows = await api('GET', 'auth/users', { query: { search } });
-    return rows.slice(0, 100).map(u => ({ userId: u._id, name: u.name, email: u.email, role: u.role,
+    return rows.slice(0, 100).map(u => ({ userId: u._id, name: u.name, email: u.email, phone: u.phone || '', signIn: u.hasPassword ? 'password' : 'google', role: u.role,
       joinedIST: IST(u.createdAt), enrollments: u.enrollments, registrations: u.registrations }));
   });
 
-tool('sign_out_student', 'write', 'Sign a student out on every device (e.g. their account is being shared). They can sign in again with Google.',
+tool('sign_out_student', 'write', 'Sign a student out on every device (e.g. their account is being shared). They can sign in again.',
   { userId: zId('user') }, ({ userId }) => api('PUT', `auth/users/${userId}/sign-out`));
+
+tool('reset_student_password', 'write', 'Give a student a new password (they forgot it, or lost access to their email). Returns the password in clear so you can read it out or WhatsApp it; also emailed to them when email is set up. Optionally set/fix their mobile number at the same time. Signs them out everywhere.',
+  { userId: zId('user'), password: z.string().min(6).optional(), phone: z.string().optional(), email: z.boolean().optional().describe('false = do not email it') },
+  ({ userId, ...body }) => api('PUT', `auth/users/${userId}/password`, { body }));
+
+tool('create_student', 'write', 'Create a student account with a password (for someone stuck at sign-up). Returns the login details to pass on; emailed to them when email is set up.',
+  { name: z.string().min(2), email: z.string().email(), phone: z.string().optional(), password: z.string().min(6).optional() },
+  (body) => api('POST', 'auth/users', { body }));
+
+tool('set_password_signup', 'write', 'Allow (true) or stop (false) students signing up with name + mobile + email + password. Google sign-in always stays on.',
+  { on: z.boolean() }, ({ on }) => api('PUT', 'settings', { body: { passwordSignup: on } }));
 
 // ─────────────────────────────────────────────────────────
 // TECH FEED (news + hackathons on the student dashboard)

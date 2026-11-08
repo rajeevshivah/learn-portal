@@ -69,10 +69,7 @@ export default function Admin() {
       <div className="container section">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
           <h1 style={{ fontSize: 24, margin: 0 }}>Admin panel</h1>
-          <button className="btn" onClick={() => navigate('/admin/roadmaps')}
-            style={{ background: '#4A9EFF', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
-            🗺 Roadmaps &amp; Promotions →
-          </button>
+          <button className="btn btn-ghost btn-sm" onClick={() => navigate('/admin/roadmaps')}>Roadmaps &amp; Promotions</button>
         </div>
 
         <div className="tabs">
