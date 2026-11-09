@@ -37,7 +37,7 @@ function AccessKeys({ setToast }) {
     <div className="card" style={{ marginTop: 16 }}>
       <h3 style={{ fontSize: 16, marginBottom: 4 }}>AI access keys (MCP)</h3>
       <p className="small muted" style={{ marginBottom: 14 }}>
-        Lets Claude or GPT run this admin panel for you through the MCP server. A key acts as you.
+        Lets Claude (on your phone, claude.ai or desktop) or GPT run this admin panel for you. A key acts as you.
         Read-only keys can look but not change anything. Revoke a key the moment you stop using it.
       </p>
 
@@ -58,11 +58,22 @@ function AccessKeys({ setToast }) {
 
       {secret && (
         <div className="card" style={{ marginTop: 12, borderColor: 'var(--warning)' }}>
-          <strong className="small" style={{ color: 'var(--warning)' }}>Copy this key now — it will never be shown again.</strong>
-          <code style={{ display: 'block', wordBreak: 'break-all', margin: '8px 0', fontSize: 13 }}>{secret}</code>
+          <strong className="small" style={{ color: 'var(--warning)' }}>Shown once. Copy what you need now.</strong>
+
+          <div style={{ marginTop: 12, fontWeight: 600 }}>For Claude on your phone, claude.ai or Claude Desktop</div>
+          <p className="small muted" style={{ margin: '2px 0 6px' }}>
+            Claude → Settings → Connectors → <b>Add custom connector</b> → paste this URL as the server URL. Leave the OAuth fields empty.
+            Anyone with this URL can act as you, so treat it like a password.
+          </p>
+          <code style={{ display: 'block', wordBreak: 'break-all', fontSize: 13 }}>{`${API.replace(/\/api\/?$/, '')}/mcp/${secret}`}</code>
+          <button className="btn btn-primary btn-sm" style={{ marginTop: 8 }} onClick={() =>
+            navigator.clipboard?.writeText(`${API.replace(/\/api\/?$/, '')}/mcp/${secret}`).then(() => setToast('Connector URL copied')).catch(() => {})}>Copy connector URL</button>
+
+          <div style={{ marginTop: 16, fontWeight: 600 }}>Key only (for the local MCP server or GPT)</div>
+          <code style={{ display: 'block', wordBreak: 'break-all', margin: '6px 0 8px', fontSize: 13 }}>{secret}</code>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-ghost btn-sm" onClick={() =>
-              navigator.clipboard?.writeText(secret).then(() => setToast('Key copied ✓')).catch(() => {})}>Copy</button>
+              navigator.clipboard?.writeText(secret).then(() => setToast('Key copied')).catch(() => {})}>Copy key</button>
             <button className="btn btn-ghost btn-sm" onClick={() => setSecret('')}>I've saved it</button>
           </div>
         </div>

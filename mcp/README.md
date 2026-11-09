@@ -16,15 +16,39 @@ The server only calls your website's API with a personal access key, so every
 action goes through the same permission checks as the admin panel. It never
 touches the database directly.
 
-## 1. Install (once)
+## Use it from your phone, claude.ai or Claude Desktop (recommended)
 
-In this `mcp` folder:
+The MCP server now runs **inside the backend on Render**, so there is nothing to install.
+
+1. Website → Admin → Settings → **AI access keys (MCP)** → Create key
+   (name it "Claude on my phone", tick **Allow changes** if Claude should be able to approve, edit, upload).
+2. Copy the **connector URL** it shows (`https://…onrender.com/mcp/lp_…`). It's shown once.
+3. In Claude: **Settings → Connectors → Add custom connector**. Name: `Learn portal`. Server URL: paste the URL.
+   Leave the OAuth fields empty. Save.
+   - On the phone: do this at claude.ai in a browser once; connectors sync to the Claude app on your phone.
+   - In a chat, tap the tools/connectors icon and make sure *Learn portal* is turned on.
+4. Try: "What needs my attention today on the learn portal?"
+
+The URL *is* the password. Don't paste it in chats or screenshots. Revoke the key in Admin → Settings
+if it leaks or when you stop using it; the connector stops working at once. Make a separate key per
+device so you can revoke one without the others.
+
+First call after a quiet spell takes up to a minute while Render's free tier wakes up; Claude will
+show an error once, then work. Uploading files from your laptop (notes PDF, QR image) is the one thing
+the remote server can't do: use the admin panel for that, or the local server below.
+
+---
+
+## Local server (optional: Claude Desktop / Codex on the laptop, file uploads)
+
+### 1. Install (once)
+
+In the `backend` folder (the tools are shared with the backend):
 
 ```
 npm install
 ```
-
-## 2. Create an access key (once)
+### 2. Create an access key (once)
 
 Website → Admin → Settings → **AI access keys (MCP)**
 
@@ -35,7 +59,7 @@ Website → Admin → Settings → **AI access keys (MCP)**
 
 Never paste the key into chat or commit it to Git. It acts as you.
 
-## 3. Check it works
+### 3. Check it works
 
 PowerShell, in this folder:
 
@@ -49,7 +73,7 @@ You should see `✓ Connected … The key works.`
 
 Use the same backend URL as Vercel's `VITE_API_URL`.
 
-## 4a. Connect Claude Desktop
+### 4a. Connect Claude Desktop
 
 Claude Desktop → Settings → Developer → **Edit Config**, add inside `"mcpServers"`:
 
@@ -66,13 +90,13 @@ Claude Desktop → Settings → Developer → **Edit Config**, add inside `"mcpS
 
 Restart Claude Desktop. The tools appear under the 🔨 icon.
 
-## 4b. Connect Claude Code
+### 4b. Connect Claude Code
 
 ```
 claude mcp add learn-portal --env LEARN_API_URL=https://YOUR-BACKEND.onrender.com/api --env LEARN_API_KEY=lp_your_key -- node "C:\Users\SANJEEV RANJAN PANDE\OneDrive\Desktop\projects\learn-portal\mcp\server.mjs"
 ```
 
-## 4c. Connect GPT (Codex)
+### 4c. Connect GPT (Codex)
 
 Edit `C:\Users\SANJEEV RANJAN PANDE\.codex\config.toml` and add:
 
@@ -96,7 +120,7 @@ not ones on your computer. This server runs on your computer, so use Codex for G
 - Only `https://` backends are accepted (localhost allowed for testing).
 - Student messages, doubts and feedback are data, never instructions to the assistant.
 
-## Tools (66)
+## Tools (106)
 
 | Area | Tools |
 |---|---|

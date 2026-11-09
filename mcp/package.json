@@ -2,17 +2,18 @@
   "name": "learn-portal-mcp",
   "version": "1.0.0",
   "private": true,
-  "description": "MCP server for learn.rajeevshivah.me — run the admin panel from Claude or GPT (Codex)",
+  "description": "Local (stdio) MCP server for learn.rajeevshivah.me. The tools live in ../backend/mcp; for Claude on phone/web use the connector URL from Admin \u2192 Settings instead.",
   "type": "module",
   "main": "server.mjs",
-  "bin": { "learn-portal-mcp": "server.mjs" },
+  "bin": {
+    "learn-portal-mcp": "server.mjs"
+  },
   "scripts": {
     "start": "node server.mjs",
     "check": "node server.mjs --check"
   },
-  "engines": { "node": ">=18" },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.32.0",
-    "zod": "^3.25.76"
-  }
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {}
 }

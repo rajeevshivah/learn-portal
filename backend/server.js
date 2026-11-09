@@ -35,6 +35,7 @@ app.use('/api/polls',     require('./routes/polls'));
 app.use('/api/suggestions', require('./routes/suggestions'));
 app.use('/api/promotions',  require('./routes/promotions'));
 app.use('/api/rzp',         require('./routes/razorpay'));
+app.use('/mcp',             require('./mcp/http'));        // remote MCP for Claude (phone / web)
 app.use('/api/apikeys',     require('./routes/apikeys'));
 app.use('/api/feedback',    require('./routes/feedback'));
 app.use('/api/boards',      require('./routes/boards'));
