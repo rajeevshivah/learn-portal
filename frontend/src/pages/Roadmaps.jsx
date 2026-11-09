@@ -40,7 +40,7 @@ export default function Roadmaps() {
     setCreating(true);
     try {
       await axios.post(`${API}/roadmaps`, newR);
-      setMsg('Roadmap created ✓ — now upload its PDF below');
+      setMsg('Roadmap created. Now upload its PDF below.');
       setNewR({ title:'', description:'', course:'' });
       fetchAll();
     } catch (err) {
@@ -55,13 +55,24 @@ export default function Roadmaps() {
     const form = new FormData();
     form.append('file', file);
     try {
-      await axios.post(`${API}/roadmaps/${id}/pdf`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
-      setMsg('PDF uploaded ✓');
+      const { data } = await axios.post(`${API}/roadmaps/${id}/pdf`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setMsg(data.message || 'PDF uploaded');
+      if (data.delivery && data.delivery !== 'ok') setCheck({ blocked: data.delivery === 'blocked' ? 1 : 0, broken: 1, hint: data.message, problems: [] });
       fetchAll();
     } catch (err) {
       setMsg(err.response?.data?.message || 'Upload failed');
     }
     setUploadFor(null);
+  };
+
+  // Are the files students download actually reachable? (Cloudinary can block PDFs.)
+  const [check, setCheck] = useState(null);
+  const [checking, setChecking] = useState(false);
+  const runCheck = async () => {
+    setChecking(true);
+    try { const { data } = await axios.get(`${API}/roadmaps/check-files`); setCheck(data); }
+    catch (err) { setMsg(err.response?.data?.message || 'Could not check files'); }
+    finally { setChecking(false); }
   };
 
   const linkCourse = async (id, courseId) => {
@@ -104,7 +115,7 @@ export default function Roadmaps() {
       else { delete payload.course; }
       if (payload.scope === 'all') payload.roadmaps = [];
       await axios.post(`${API}/promotions`, payload);
-      setMsg('Promotion created ✓');
+      setMsg('Promotion created');
       setNewP(emptyPromo);
       fetchAll();
     } catch (err) {
@@ -134,9 +145,9 @@ export default function Roadmaps() {
   const promotableEvents = events.filter(e => e.isPublished && !e.isCompleted);
 
   const describeTarget = (p) => {
-    if (p.kind === 'course') return p.course ? `📚 ${p.course.title}` : '📚 (deleted course)';
-    if (p.event) return `🎥 ${p.event.title}${p.expired ? ' (ended — hidden)' : ''}`;
-    return '🎥 (deleted event)';
+    if (p.kind === 'course') return p.course ? `Course: ${p.course.title}` : 'Course (deleted)';
+    if (p.event) return `Live program: ${p.event.title}${p.expired ? ' (ended, hidden)' : ''}`;
+    return 'Live program (deleted)';
   };
   const describeScope = (p) => {
     if (p.scope === 'all') return 'All roadmap pages';
@@ -145,263 +156,194 @@ export default function Roadmaps() {
   };
 
   return (
-    <div style={s.page}>
-      <nav style={s.nav}>
-        <div style={s.brand} onClick={() => navigate('/courses')}>
-          <span style={{color:'#4A9EFF',fontWeight:700}}>codeWith</span><span style={{color:'#fff',fontWeight:700}}>Shivah</span>
-          <span style={s.sub}>roadmaps</span>
-        </div>
-        <button style={s.adminBtn} onClick={() => navigate('/admin')}>← Admin</button>
-      </nav>
-
-      <div style={s.content}>
-        <h1 style={s.title}>Roadmaps</h1>
-        <p style={s.subtitle}>Shareable lead-magnet PDFs for Instagram &amp; YouTube. Each gets a public funnel page.</p>
-
-        {msg && <div style={s.msg}>{msg} <span style={s.closeMsg} onClick={() => setMsg('')}>✕</span></div>}
-
-        {/* create roadmap */}
-        <div style={s.card}>
-          <h2 style={s.cardTitle}>New roadmap</h2>
-          <form onSubmit={createRoadmap}>
-            <div style={s.field}>
-              <label style={s.label}>Title</label>
-              <input style={s.input} placeholder="e.g. Machine Learning Roadmap 2026"
-                value={newR.title} onChange={e => setNewR({...newR, title: e.target.value})} required />
-            </div>
-            <div style={s.field}>
-              <label style={s.label}>Description (shown on the funnel page)</label>
-              <textarea style={{...s.input, height:'64px', resize:'vertical'}}
-                placeholder="One or two lines on what this roadmap covers"
-                value={newR.description} onChange={e => setNewR({...newR, description: e.target.value})} />
-            </div>
-            <div style={s.field}>
-              <label style={s.label}>Link to a course (optional)</label>
-              <select style={s.input} value={newR.course} onChange={e => setNewR({...newR, course: e.target.value})}>
-                <option value="">— Standalone (no course) —</option>
-                {courses.map(c => <option key={c._id} value={c._id}>{c.title}</option>)}
-              </select>
-            </div>
-            <button style={s.btn} type="submit" disabled={creating}>
-              {creating ? 'Creating...' : 'Create roadmap'}
-            </button>
-          </form>
-        </div>
-
-        {/* roadmap list */}
-        {roadmaps.map(r => (
-          <div key={r._id} style={s.card}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'10px' }}>
-              <div>
-                <h3 style={{ color:'#fff', fontSize:'18px', fontWeight:600 }}>{r.title}</h3>
-                <p style={{ color:'#6B8CAE', fontSize:'13px', marginTop:'4px' }}>{r.description || 'No description'}</p>
-              </div>
-              <span style={{ ...s.badge, background: r.isPublished ? '#0F2318':'#2a1a00', color: r.isPublished ? '#4CAF7D':'#FF9F45' }}
-                onClick={() => togglePublish(r)}>
-                {r.isPublished ? 'Live' : 'Hidden'}
-              </span>
-            </div>
-
-            <div style={s.statsRow}>
-              <span>👁 {r.views || 0} views</span>
-              <span>⬇ {r.downloads || 0} downloads</span>
-            </div>
-
-            <div style={s.linkRow}>
-              <code style={s.code}>learn.rajeevshivah.me/r/{r.slug}</code>
-              <button style={s.smallBtn} onClick={() => copyLink(r.slug)}>Copy</button>
-              <a style={{...s.smallBtn, textDecoration:'none', display:'inline-block'}} href={`/r/${r.slug}`} target="_blank" rel="noreferrer">Preview</a>
-            </div>
-
-            <div style={s.controlRow}>
-              <div>
-                <label style={s.miniLabel}>PDF</label>
-                {r.pdfUrl
-                  ? <a href={r.pdfUrl} target="_blank" rel="noreferrer" style={{ color:'#4CAF7D', fontSize:'13px' }}>📄 uploaded</a>
-                  : <span style={{ color:'#FF9F45', fontSize:'13px' }}>none yet</span>}
-                <input type="file" accept=".pdf" style={{ display:'block', marginTop:'6px', color:'#8899AA', fontSize:'12px' }}
-                  disabled={uploadFor === r._id}
-                  onChange={e => uploadPdf(r._id, e.target.files[0])} />
-              </div>
-              <div>
-                <label style={s.miniLabel}>Linked course</label>
-                <select style={{...s.input, marginBottom:0}} value={r.course?._id || ''}
-                  onChange={e => linkCourse(r._id, e.target.value)}>
-                  <option value="">— Standalone —</option>
-                  {courses.map(c => <option key={c._id} value={c._id}>{c.title}</option>)}
-                </select>
-              </div>
-            </div>
-
-            <button style={{...s.smallBtn, background:'#2a1a1a', color:'#FF7070', marginTop:'14px'}} onClick={() => remove(r._id)}>
-              Delete roadmap
-            </button>
+    <div className="page">
+      <div className="container section rmx">
+        <div className="rmx-head">
+          <div>
+            <h1>Roadmaps</h1>
+            <p className="muted">Free PDFs you share from Instagram and YouTube. Each one gets a public page with a download button, and shows whatever you’re promoting.</p>
           </div>
-        ))}
-        {roadmaps.length === 0 && <p style={s.muted}>No roadmaps yet. Create one above.</p>}
-
-        {/* ═══════════════ PROMOTIONS ═══════════════ */}
-        <div style={s.sectionDivider}>
-          <h1 style={{...s.title, marginTop:0}}>Featured Promotions</h1>
-          <p style={s.subtitle}>
-            Show a course or live webinar to everyone who opens a roadmap page. Target all pages or just specific ones.
-            Past webinars hide themselves automatically.
-          </p>
+          <button className="btn btn-ghost btn-sm" onClick={() => navigate('/admin')}>Back to admin</button>
         </div>
 
-        {/* create promotion */}
-        <div style={s.card}>
-          <h2 style={s.cardTitle}>New promotion</h2>
-          <form onSubmit={createPromo}>
-            <div style={s.field}>
-              <label style={s.label}>What do you want to promote?</label>
-              <div style={{ display:'flex', gap:'10px' }}>
-                <button type="button"
-                  style={{...s.toggle, ...(newP.kind==='course' ? s.toggleOn : {})}}
-                  onClick={() => setNewP({...newP, kind:'course', event:''})}>📚 A course</button>
-                <button type="button"
-                  style={{...s.toggle, ...(newP.kind==='event' ? s.toggleOn : {})}}
-                  onClick={() => setNewP({...newP, kind:'event', course:''})}>🎥 A live webinar</button>
-              </div>
+        {msg && <div className="rmx-msg" role="status">{msg} <button className="tx-x" onClick={() => setMsg('')} aria-label="Dismiss">×</button></div>}
+
+        {/* Download health */}
+        <div className={`card rmx-check ${check && check.broken ? 'is-bad' : ''}`}>
+          <div className="rmx-check-row">
+            <div>
+              <strong>Can students download the files?</strong>
+              <div className="small muted">Checks every roadmap PDF and lesson file. Run it after uploading, or if someone says a download is empty.</div>
             </div>
-
-            {newP.kind === 'course' ? (
-              <div style={s.field}>
-                <label style={s.label}>Which course</label>
-                <select style={s.input} value={newP.course} required
-                  onChange={e => setNewP({...newP, course: e.target.value})}>
-                  <option value="">— Select a course —</option>
-                  {courses.map(c => <option key={c._id} value={c._id}>{c.title}{c.isPublished ? '' : ' (draft)'}</option>)}
-                </select>
-              </div>
-            ) : (
-              <div style={s.field}>
-                <label style={s.label}>Which webinar / workshop</label>
-                <select style={s.input} value={newP.event} required
-                  onChange={e => setNewP({...newP, event: e.target.value})}>
-                  <option value="">— Select an event —</option>
-                  {promotableEvents.map(ev => <option key={ev._id} value={ev._id}>{ev.title}</option>)}
-                </select>
-                {promotableEvents.length === 0 &&
-                  <p style={{ color:'#FF9F45', fontSize:'12px', marginTop:'6px' }}>No upcoming published events. Publish one first.</p>}
-              </div>
-            )}
-
-            <div style={s.controlRow}>
-              <div style={s.field}>
-                <label style={s.label}>Headline (optional)</label>
-                <input style={s.input} placeholder="Leave blank to use its own title"
-                  value={newP.headline} onChange={e => setNewP({...newP, headline: e.target.value})} />
-              </div>
-              <div style={s.field}>
-                <label style={s.label}>CTA button label (optional)</label>
-                <input style={s.input} placeholder={newP.kind==='course' ? 'Explore the course' : 'Register now'}
-                  value={newP.ctaLabel} onChange={e => setNewP({...newP, ctaLabel: e.target.value})} />
-              </div>
-            </div>
-
-            <div style={s.field}>
-              <label style={s.label}>Subtext (optional)</label>
-              <input style={s.input} placeholder="One line under the headline"
-                value={newP.subtext} onChange={e => setNewP({...newP, subtext: e.target.value})} />
-            </div>
-
-            <div style={s.field}>
-              <label style={s.label}>Where should it show?</label>
-              <div style={{ display:'flex', gap:'10px', marginBottom: newP.scope==='selected' ? '12px' : 0 }}>
-                <button type="button"
-                  style={{...s.toggle, ...(newP.scope==='all' ? s.toggleOn : {})}}
-                  onClick={() => setNewP({...newP, scope:'all'})}>🌐 All roadmap pages</button>
-                <button type="button"
-                  style={{...s.toggle, ...(newP.scope==='selected' ? s.toggleOn : {})}}
-                  onClick={() => setNewP({...newP, scope:'selected'})}>🎯 Specific roadmaps</button>
-              </div>
-
-              {newP.scope === 'selected' && (
-                <div style={s.checkGrid}>
-                  {roadmaps.map(r => (
-                    <label key={r._id} style={{
-                      ...s.checkItem,
-                      borderColor: newP.roadmaps.includes(r._id) ? '#4A9EFF' : '#1e3a5f',
-                      background: newP.roadmaps.includes(r._id) ? '#0d2036' : '#0a0f1e',
-                    }}>
-                      <input type="checkbox" checked={newP.roadmaps.includes(r._id)}
-                        onChange={() => toggleRoadmapTarget(r._id)} style={{ marginRight:'8px' }} />
-                      {r.title}
-                    </label>
-                  ))}
-                  {roadmaps.length === 0 && <p style={s.muted}>Create a roadmap first.</p>}
-                </div>
+            <button className="btn btn-ghost btn-sm" disabled={checking} onClick={runCheck}>{checking ? 'Checking…' : 'Check all files'}</button>
+          </div>
+          {check && (
+            <div className="small" style={{ marginTop: 10 }}>
+              {check.checked !== undefined && <div>{check.ok} of {check.checked} files download fine.</div>}
+              {check.hint && <p className="rmx-hint">{check.hint}</p>}
+              {check.problems?.length > 0 && (
+                <ul className="rmx-problems">
+                  {check.problems.map((pr, i) => <li key={i}><span className="badge badge-danger">{pr.status}</span> {pr.where}</li>)}
+                </ul>
               )}
             </div>
-
-            <button style={s.btn} type="submit" disabled={creatingP}>
-              {creatingP ? 'Creating...' : 'Create promotion'}
-            </button>
-          </form>
+          )}
         </div>
 
-        {/* promotion list */}
-        {promos.map(p => (
-          <div key={p._id} style={{...s.card, opacity: p.isActive ? 1 : 0.55}}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'10px' }}>
-              <div>
-                <h3 style={{ color:'#fff', fontSize:'16px', fontWeight:600 }}>
-                  {p.headline || describeTarget(p)}
-                </h3>
-                <p style={{ color:'#6B8CAE', fontSize:'13px', marginTop:'4px' }}>{describeTarget(p)}</p>
-                <p style={{ color:'#4A6A8A', fontSize:'12px', marginTop:'2px' }}>{describeScope(p)}</p>
-                {p.expired && <p style={{ color:'#FF9F45', fontSize:'12px', marginTop:'4px' }}>⚠ This event has ended — it's hidden from all pages.</p>}
+        {/* New roadmap */}
+        <form className="card rmx-form" onSubmit={createRoadmap}>
+          <h2>New roadmap</h2>
+          <div className="field">
+            <label className="label">Title</label>
+            <input className="input" placeholder="e.g. Machine Learning Roadmap 2026" value={newR.title} onChange={e => setNewR({ ...newR, title: e.target.value })} required />
+          </div>
+          <div className="field">
+            <label className="label">One or two lines shown under the title (optional)</label>
+            <textarea className="textarea" rows={2} placeholder="Who it’s for and what it covers" value={newR.description} onChange={e => setNewR({ ...newR, description: e.target.value })} />
+          </div>
+          <div className="field">
+            <label className="label">Link to a course (optional)</label>
+            <select className="select" value={newR.course} onChange={e => setNewR({ ...newR, course: e.target.value })}>
+              <option value="">Standalone, no course</option>
+              {courses.map(c => <option key={c._id} value={c._id}>{c.title}</option>)}
+            </select>
+          </div>
+          <button className="btn btn-primary" type="submit" disabled={creating}>{creating ? 'Creating…' : 'Create roadmap'}</button>
+        </form>
+
+        {/* Roadmaps */}
+        <div className="rmx-list">
+          {roadmaps.map(r => (
+            <article key={r._id} className="card rmx-item">
+              <div className="rmx-item-head">
+                <div style={{ minWidth: 0 }}>
+                  <h3>{r.title}</h3>
+                  <p className="small muted">{r.description || 'No description'}</p>
+                </div>
+                <button className={`badge ${r.isPublished ? 'badge-success' : 'badge-warning'} rmx-toggle`} onClick={() => togglePublish(r)} title="Click to switch">
+                  {r.isPublished ? 'Live' : 'Hidden'}
+                </button>
               </div>
-              <span style={{ ...s.badge, background: p.isActive ? '#0F2318':'#2a1a00', color: p.isActive ? '#4CAF7D':'#FF9F45' }}
-                onClick={() => togglePromoActive(p)}>
-                {p.isActive ? 'Active' : 'Off'}
-              </span>
-            </div>
-            <div style={{ display:'flex', gap:'8px', marginTop:'12px', flexWrap:'wrap' }}>
-              <button style={s.smallBtn} onClick={() => changePromoOrder(p, -1)}>↑ Up</button>
-              <button style={s.smallBtn} onClick={() => changePromoOrder(p, 1)}>↓ Down</button>
-              <span style={{ color:'#4A6A8A', fontSize:'12px', alignSelf:'center' }}>order: {p.order || 0}</span>
-              <button style={{...s.smallBtn, background:'#2a1a1a', color:'#FF7070', marginLeft:'auto'}} onClick={() => removePromo(p._id)}>
-                Delete
-              </button>
+              <div className="rmx-stats">
+                <span><strong>{(r.views || 0).toLocaleString('en-IN')}</strong> views</span>
+                <span><strong>{(r.downloads || 0).toLocaleString('en-IN')}</strong> downloads</span>
+                <span>{r.pdfUrl ? <a href={r.pdfUrl} target="_blank" rel="noreferrer">PDF uploaded</a> : <span style={{ color: 'var(--warning)' }}>No PDF yet</span>}</span>
+              </div>
+              <div className="rmx-link">
+                <code>learn.rajeevshivah.me/r/{r.slug}</code>
+                <button className="btn btn-ghost btn-sm" onClick={() => copyLink(r.slug)}>Copy link</button>
+                <a className="btn btn-ghost btn-sm" href={`/r/${r.slug}`} target="_blank" rel="noreferrer">Preview</a>
+              </div>
+              <div className="rmx-controls">
+                <label className="small">
+                  <span className="label">{r.pdfUrl ? 'Replace the PDF' : 'Upload the PDF'}</span>
+                  <input type="file" accept=".pdf" disabled={uploadFor === r._id} onChange={e => uploadPdf(r._id, e.target.files[0])} />
+                  {uploadFor === r._id && <span className="muted"> Uploading…</span>}
+                </label>
+                <label className="small">
+                  <span className="label">Linked course</span>
+                  <select className="select" value={r.course?._id || ''} onChange={e => linkCourse(r._id, e.target.value)}>
+                    <option value="">Standalone</option>
+                    {courses.map(c => <option key={c._id} value={c._id}>{c.title}</option>)}
+                  </select>
+                </label>
+                <button className="btn btn-danger btn-sm rmx-delete" onClick={() => remove(r._id)}>Delete</button>
+              </div>
+            </article>
+          ))}
+          {roadmaps.length === 0 && <div className="empty-state">No roadmaps yet. Create one above.</div>}
+        </div>
+
+        {/* Promotions */}
+        <div className="rmx-head" style={{ marginTop: 40 }}>
+          <div>
+            <h1 style={{ fontSize: 26 }}>Promotions on roadmap pages</h1>
+            <p className="muted">Show a course or a live program to everyone who opens a roadmap. Past programs hide themselves.</p>
+          </div>
+        </div>
+
+        <form className="card rmx-form" onSubmit={createPromo}>
+          <h2>New promotion</h2>
+          <div className="field">
+            <label className="label">What to promote</label>
+            <div className="tabs" style={{ margin: 0 }}>
+              <button type="button" className={`tab ${newP.kind === 'course' ? 'active' : ''}`} onClick={() => setNewP({ ...newP, kind: 'course', event: '' })}>A course</button>
+              <button type="button" className={`tab ${newP.kind === 'event' ? 'active' : ''}`} onClick={() => setNewP({ ...newP, kind: 'event', course: '' })}>A live program</button>
             </div>
           </div>
-        ))}
-        {promos.length === 0 && <p style={s.muted}>No promotions yet. Create one above to feature a course or webinar on your roadmap pages.</p>}
+          {newP.kind === 'course' ? (
+            <div className="field">
+              <label className="label">Which course</label>
+              <select className="select" value={newP.course} required onChange={e => setNewP({ ...newP, course: e.target.value })}>
+                <option value="">Select a course</option>
+                {courses.map(c => <option key={c._id} value={c._id}>{c.title}{c.isPublished ? '' : ' (draft)'}</option>)}
+              </select>
+            </div>
+          ) : (
+            <div className="field">
+              <label className="label">Which program</label>
+              <select className="select" value={newP.event} required onChange={e => setNewP({ ...newP, event: e.target.value })}>
+                <option value="">Select a program</option>
+                {promotableEvents.map(ev => <option key={ev._id} value={ev._id}>{ev.title}</option>)}
+              </select>
+              {promotableEvents.length === 0 && <p className="small" style={{ color: 'var(--warning)', marginTop: 6 }}>No upcoming published programs. Publish one first.</p>}
+            </div>
+          )}
+          <div className="rmx-two">
+            <div className="field">
+              <label className="label">Headline (optional)</label>
+              <input className="input" placeholder="Leave blank to use its own title" value={newP.headline} onChange={e => setNewP({ ...newP, headline: e.target.value })} />
+            </div>
+            <div className="field">
+              <label className="label">Button text (optional)</label>
+              <input className="input" placeholder={newP.kind === 'course' ? 'Explore the course' : 'Register now'} value={newP.ctaLabel} onChange={e => setNewP({ ...newP, ctaLabel: e.target.value })} />
+            </div>
+          </div>
+          <div className="field">
+            <label className="label">One line under the headline (optional)</label>
+            <input className="input" value={newP.subtext} onChange={e => setNewP({ ...newP, subtext: e.target.value })} />
+          </div>
+          <div className="field">
+            <label className="label">Where it shows</label>
+            <div className="tabs" style={{ margin: 0 }}>
+              <button type="button" className={`tab ${newP.scope === 'all' ? 'active' : ''}`} onClick={() => setNewP({ ...newP, scope: 'all' })}>All roadmap pages</button>
+              <button type="button" className={`tab ${newP.scope === 'selected' ? 'active' : ''}`} onClick={() => setNewP({ ...newP, scope: 'selected' })}>Chosen roadmaps</button>
+            </div>
+            {newP.scope === 'selected' && (
+              <div className="tf-chips" style={{ marginTop: 10 }}>
+                {roadmaps.map(r => (
+                  <button type="button" key={r._id} className={`tf-chip ${newP.roadmaps.includes(r._id) ? 'on' : ''}`} aria-pressed={newP.roadmaps.includes(r._id)} onClick={() => toggleRoadmapTarget(r._id)}>{r.title}</button>
+                ))}
+                {roadmaps.length === 0 && <p className="small muted">Create a roadmap first.</p>}
+              </div>
+            )}
+          </div>
+          <button className="btn btn-primary" type="submit" disabled={creatingP}>{creatingP ? 'Creating…' : 'Create promotion'}</button>
+        </form>
+
+        <div className="rmx-list">
+          {promos.map(p => (
+            <article key={p._id} className="card rmx-item" style={{ opacity: p.isActive ? 1 : 0.6 }}>
+              <div className="rmx-item-head">
+                <div style={{ minWidth: 0 }}>
+                  <h3>{p.headline || describeTarget(p)}</h3>
+                  <p className="small muted">{describeTarget(p)}</p>
+                  <p className="small muted">{describeScope(p)}</p>
+                  {p.expired && <p className="small" style={{ color: 'var(--warning)' }}>This program has ended, so it’s hidden from every page.</p>}
+                </div>
+                <button className={`badge ${p.isActive ? 'badge-success' : 'badge-muted'} rmx-toggle`} onClick={() => togglePromoActive(p)} title="Click to switch">{p.isActive ? 'Showing' : 'Off'}</button>
+              </div>
+              <div className="rmx-link">
+                <button className="btn btn-ghost btn-sm" onClick={() => changePromoOrder(p, -1)}>Move up</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => changePromoOrder(p, 1)}>Move down</button>
+                <span className="small muted">Position {p.order || 0}</span>
+                <button className="btn btn-danger btn-sm rmx-delete" onClick={() => removePromo(p._id)}>Delete</button>
+              </div>
+            </article>
+          ))}
+          {promos.length === 0 && <div className="empty-state">No promotions yet.</div>}
+        </div>
       </div>
     </div>
   );
 }
-
-const s = {
-  page: { minHeight:'100vh', background:'#0a0f1e', fontFamily:'Arial, sans-serif' },
-  nav: { background:'#111827', borderBottom:'1px solid #1e3a5f', padding:'14px 32px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:10 },
-  brand: { display:'flex', alignItems:'center', gap:'4px', fontSize:'18px', cursor:'pointer' },
-  sub: { color:'#4A6A8A', fontSize:'13px', marginLeft:'8px' },
-  adminBtn: { background:'#1e3a5f', color:'#4A9EFF', border:'none', padding:'6px 14px', borderRadius:'6px', cursor:'pointer', fontSize:'13px' },
-  content: { maxWidth:'820px', margin:'0 auto', padding:'40px 24px' },
-  title: { color:'#fff', fontSize:'28px', fontWeight:700, marginBottom:'6px' },
-  subtitle: { color:'#6B8CAE', fontSize:'14px', marginBottom:'24px' },
-  msg: { background:'#1e3a5f', color:'#cfe', padding:'10px 14px', borderRadius:'8px', marginBottom:'18px', fontSize:'14px', display:'flex', justifyContent:'space-between' },
-  closeMsg: { cursor:'pointer', color:'#8fb' },
-  card: { background:'#111827', border:'1px solid #1e3a5f', borderRadius:'12px', padding:'22px', marginBottom:'18px' },
-  cardTitle: { color:'#fff', fontSize:'17px', fontWeight:600, marginBottom:'16px' },
-  field: { marginBottom:'14px' },
-  label: { display:'block', color:'#8899AA', fontSize:'13px', marginBottom:'6px' },
-  miniLabel: { display:'block', color:'#6B8CAE', fontSize:'12px', marginBottom:'4px' },
-  input: { width:'100%', padding:'10px 12px', background:'#0a0f1e', border:'1px solid #1e3a5f', borderRadius:'8px', color:'#fff', fontSize:'14px', outline:'none', marginBottom:'0', boxSizing:'border-box' },
-  btn: { width:'100%', background:'#4A9EFF', color:'#fff', border:'none', padding:'12px', borderRadius:'8px', cursor:'pointer', fontSize:'15px', fontWeight:600 },
-  smallBtn: { background:'#1e3a5f', color:'#4A9EFF', border:'none', padding:'7px 12px', borderRadius:'6px', cursor:'pointer', fontSize:'12px', fontWeight:600 },
-  badge: { fontSize:'12px', padding:'4px 12px', borderRadius:'20px', fontWeight:600, cursor:'pointer' },
-  statsRow: { display:'flex', gap:'18px', color:'#8899AA', fontSize:'13px', margin:'14px 0' },
-  linkRow: { display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap', background:'#0a0f1e', border:'1px solid #1e3a5f', borderRadius:'8px', padding:'10px 12px', marginBottom:'14px' },
-  code: { color:'#4A9EFF', fontFamily:'monospace', fontSize:'13px', flex:1, minWidth:'200px' },
-  controlRow: { display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px' },
-  muted: { color:'#6B8CAE', textAlign:'center', marginTop:'30px' },
-  sectionDivider: { borderTop:'2px dashed #1e3a5f', marginTop:'44px', paddingTop:'34px' },
-  toggle: { flex:1, background:'#0a0f1e', color:'#8899AA', border:'1px solid #1e3a5f', padding:'10px', borderRadius:'8px', cursor:'pointer', fontSize:'13px', fontWeight:600 },
-  toggleOn: { background:'#0d2036', color:'#4A9EFF', borderColor:'#4A9EFF' },
-  checkGrid: { display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:'8px' },
-  checkItem: { display:'flex', alignItems:'center', color:'#cbd6e2', fontSize:'13px', border:'1px solid #1e3a5f', borderRadius:'8px', padding:'10px 12px', cursor:'pointer' },
-};

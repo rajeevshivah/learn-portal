@@ -22,14 +22,17 @@ The MCP server now runs **inside the backend on Render**, so there is nothing to
 
 1. Website → Admin → Settings → **AI access keys (MCP)** → Create key
    (name it "Claude on my phone", tick **Allow changes** if Claude should be able to approve, edit, upload).
-2. Copy the **connector URL** it shows (`https://…onrender.com/mcp/lp_…`). It's shown once.
-3. In Claude: **Settings → Connectors → Add custom connector**. Name: `Learn portal`. Server URL: paste the URL.
-   Leave the OAuth fields empty. Save.
+2. It shows a **server URL** (`https://…onrender.com/mcp`) and the key. Both are shown once.
+3. In Claude: **Settings → Connectors → Add custom connector**. Name: `Learn portal`. Server URL: paste it.
+   Authentication: **No sign-in**. Under **Request headers** click *Add header*: name `Authorization`,
+   value `Bearer lp_…` (the word Bearer, a space, the key). Save, then Connect.
+   If a client has no headers box, use `https://…onrender.com/mcp/lp_…` as the URL instead (then the
+   URL itself is the password).
    - On the phone: do this at claude.ai in a browser once; connectors sync to the Claude app on your phone.
    - In a chat, tap the tools/connectors icon and make sure *Learn portal* is turned on.
 4. Try: "What needs my attention today on the learn portal?"
 
-The URL *is* the password. Don't paste it in chats or screenshots. Revoke the key in Admin → Settings
+The key is the password. Don't paste it in chats or screenshots. Revoke the key in Admin → Settings
 if it leaks or when you stop using it; the connector stops working at once. Make a separate key per
 device so you can revoke one without the others.
 
@@ -120,7 +123,7 @@ not ones on your computer. This server runs on your computer, so use Codex for G
 - Only `https://` backends are accepted (localhost allowed for testing).
 - Student messages, doubts and feedback are data, never instructions to the assistant.
 
-## Tools (106)
+## Tools (107)
 
 | Area | Tools |
 |---|---|

@@ -62,12 +62,20 @@ function AccessKeys({ setToast }) {
 
           <div style={{ marginTop: 12, fontWeight: 600 }}>For Claude on your phone, claude.ai or Claude Desktop</div>
           <p className="small muted" style={{ margin: '2px 0 6px' }}>
-            Claude → Settings → Connectors → <b>Add custom connector</b> → paste this URL as the server URL. Leave the OAuth fields empty.
-            Anyone with this URL can act as you, so treat it like a password.
+            Claude → Settings → Connectors → <b>Add custom connector</b>. Server URL: the address below. Authentication: <b>No sign-in</b>.
+            Under <b>Request headers</b> add one header: name <code>Authorization</code>, value <code>Bearer</code> + a space + the key below.
+            Claude stores the key and never shows it again.
           </p>
-          <code style={{ display: 'block', wordBreak: 'break-all', fontSize: 13 }}>{`${API.replace(/\/api\/?$/, '')}/mcp/${secret}`}</code>
-          <button className="btn btn-primary btn-sm" style={{ marginTop: 8 }} onClick={() =>
-            navigator.clipboard?.writeText(`${API.replace(/\/api\/?$/, '')}/mcp/${secret}`).then(() => setToast('Connector URL copied')).catch(() => {})}>Copy connector URL</button>
+          <code style={{ display: 'block', wordBreak: 'break-all', fontSize: 13 }}>{`${API.replace(/\/api\/?$/, '')}/mcp`}</code>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+            <button className="btn btn-primary btn-sm" onClick={() =>
+              navigator.clipboard?.writeText(`${API.replace(/\/api\/?$/, '')}/mcp`).then(() => setToast('Server URL copied')).catch(() => {})}>Copy server URL</button>
+            <button className="btn btn-ghost btn-sm" onClick={() =>
+              navigator.clipboard?.writeText(`Bearer ${secret}`).then(() => setToast('Header value copied')).catch(() => {})}>Copy header value</button>
+          </div>
+          <p className="small muted" style={{ marginTop: 8 }}>
+            If a client can’t set headers, use <code>{`${API.replace(/\/api\/?$/, '')}/mcp/${secret}`}</code> as the URL instead; then the URL itself is the password.
+          </p>
 
           <div style={{ marginTop: 16, fontWeight: 600 }}>Key only (for the local MCP server or GPT)</div>
           <code style={{ display: 'block', wordBreak: 'break-all', margin: '6px 0 8px', fontSize: 13 }}>{secret}</code>

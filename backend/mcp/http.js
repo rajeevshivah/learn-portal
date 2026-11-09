@@ -39,11 +39,21 @@ const apiFor = (key, port) => async (method, route, { query, body, form } = {}) 
 };
 const noFiles = async () => { throw new Error('Uploading a file from a computer only works with the local MCP server. Share a link instead, or upload it in the admin panel.'); };
 
-// Key in the URL → valid, not expired/revoked, owned by an admin. (MCP itself is
-// all POSTs, so read-only vs write is enforced on each tool's API call, not here.)
-router.use('/:key', async (req, res, next) => {
-  const key = String(req.params.key || '');
-  if (!key.startsWith('lp_')) return res.status(404).json({ message: 'Not found' });
+// The key comes either as a request header (Authorization: Bearer lp_… — the safer
+// option, Claude's connector settings have a "Request headers" box) or in the URL
+// (/mcp/lp_…) for clients that can't set headers. Must be valid, not expired/revoked,
+// and owned by an admin. MCP itself is all POSTs, so read-only vs write is enforced
+// on each tool's API call, not here.
+const keyFrom = (req) => {
+  const h = String(req.headers.authorization || '');
+  if (/^bearer\s+lp_/i.test(h)) return h.replace(/^bearer\s+/i, '').trim();
+  const k = String(req.params.key || '');
+  return k.startsWith('lp_') ? k : '';
+};
+const checkKey = async (req, res, next) => {
+  const key = keyFrom(req);
+  if (!key) return res.status(req.params.key ? 404 : 401).json({ message: req.params.key ? 'Not found' : 'Send your lp_ access key as "Authorization: Bearer lp_…"' });
+  req.mcpKey = key;
   try {
     const digest = crypto.createHash('sha256').update(key).digest('hex');
     const k = await ApiKey.findOne({ digest, revokedAt: null, expiresAt: { $gt: new Date() } });
@@ -54,16 +64,18 @@ router.use('/:key', async (req, res, next) => {
     ApiKey.updateOne({ _id: k._id }, { $set: { lastUsedAt: new Date() } }).catch(() => {});
     next();
   } catch (e) { next(e); }
-});
+};
+router.use('/:key', checkKey);
+router.use('/', (req, res, next) => (req.path === '/' ? checkKey(req, res, next) : next()));
 
-router.all('/:key', async (req, res) => {
+router.all(['/', '/:key'], async (req, res) => {
   // A browser opening the URL: say what it is instead of a JSON-RPC error
   if (req.method === 'GET' && !String(req.headers.accept || '').includes('text/event-stream')) {
     return res.type('text').send(`learn-portal MCP is running for ${req.user.email}. Add this URL as a custom connector in Claude.`);
   }
   try {
     const { buildServer, Transport } = await load();
-    const server = buildServer({ api: apiFor(req.params.key, req.socket.localPort || process.env.PORT || 5000), fileForm: noFiles });
+    const server = buildServer({ api: apiFor(req.mcpKey, req.socket.localPort || process.env.PORT || 5000), fileForm: noFiles });
     const transport = new Transport({ sessionIdGenerator: undefined });
     res.on('close', () => { transport.close().catch(() => {}); server.close().catch(() => {}); });
     await server.connect(transport);

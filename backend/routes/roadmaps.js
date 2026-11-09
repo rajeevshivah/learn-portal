@@ -4,6 +4,19 @@ const Roadmap  = require('../models/Roadmap');
 const Course   = require('../models/Course');
 const { cloudinary, upload } = require('../config/cloudinary');
 const { protect, adminOnly } = require('../middleware/auth');
+const Episode  = require('../models/Episode');
+
+// Can the public actually fetch this file? Cloudinary blocks PDF/ZIP delivery on free
+// accounts unless "Allow delivery of PDF and ZIP files" is on (Settings → Security),
+// and then answers 401. Old uploads without a .pdf extension slipped past that check.
+const CLOUDINARY_HINT = 'Cloudinary is blocking PDF downloads. Fix once: cloudinary.com → Settings → Security → turn on "Allow delivery of PDF and ZIP files" (or "PDF and ZIP files delivery") → Save. Existing files start working at once.';
+async function deliverable(url) {
+  if (!url) return 'missing';
+  try {
+    const r = await fetch(url, { method: 'HEAD', redirect: 'follow', signal: AbortSignal.timeout(8000) });
+    return r.ok ? 'ok' : r.status === 401 ? 'blocked' : `http ${r.status}`;
+  } catch { return 'unreachable'; }
+}
 
 const slugify = (str) =>
   str.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
@@ -83,7 +96,34 @@ router.post('/:id/pdf', protect, adminOnly, upload.single('file'), async (req, r
   roadmap.pdfUrl = req.file.path;
   roadmap.pdfPublicId = req.file.filename;
   await roadmap.save();
-  res.status(201).json({ message: 'PDF uploaded', pdfUrl: roadmap.pdfUrl });
+  const delivery = await deliverable(roadmap.pdfUrl);
+  res.status(201).json({
+    message: delivery === 'ok' ? 'PDF uploaded and downloadable.' : delivery === 'blocked' ? `PDF uploaded, but students can’t download it yet. ${CLOUDINARY_HINT}` : `PDF uploaded, but the file check returned "${delivery}". Open the public page and try the download.`,
+    pdfUrl: roadmap.pdfUrl, delivery,
+  });
+});
+
+// ── ADMIN: check every public file (roadmap PDFs + lesson files) is downloadable ──
+router.get('/check-files', protect, adminOnly, async (req, res) => {
+  const roadmaps = await Roadmap.find().select('title slug pdfUrl');
+  const episodes = await Episode.find({ 'files.0': { $exists: true } }).select('title episodeNumber files course').populate('course', 'title');
+  const items = [
+    ...roadmaps.map(r => ({ kind: 'roadmap', title: r.title, url: r.pdfUrl, where: `Roadmap “${r.title}”` })),
+    ...episodes.flatMap(e => (e.files || []).map(f => ({ kind: 'lesson', title: f.label, url: f.url, where: `${e.course?.title || 'Course'} · Lesson ${e.episodeNumber} · ${f.label}` }))),
+  ];
+  const results = [];
+  for (let i = 0; i < items.length; i += 6) {
+    const batch = items.slice(i, i + 6);
+    const statuses = await Promise.all(batch.map(it => deliverable(it.url)));
+    batch.forEach((it, j) => results.push({ ...it, status: statuses[j] }));
+  }
+  const blocked = results.filter(r => r.status === 'blocked');
+  const broken = results.filter(r => r.status !== 'ok');
+  res.json({
+    checked: results.length, ok: results.length - broken.length, blocked: blocked.length, broken: broken.length,
+    hint: blocked.length ? CLOUDINARY_HINT : '',
+    problems: broken,
+  });
 });
 
 // ── ADMIN: delete roadmap ────────────────────────────────

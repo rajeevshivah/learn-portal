@@ -634,7 +634,7 @@ export function buildServer({ api, fileForm }) {
   // ─────────────────────────────────────────────────────────
   tool('list_roadmaps', 'read', 'Public roadmap lead-magnet pages with views and downloads.', {}, async () =>
     (await api('GET', 'roadmaps')).map(r => ({ roadmapId: r._id, title: r.title, slug: r.slug, published: r.isPublished,
-      views: r.views, downloads: r.downloads, hasPdf: Boolean(r.pdfUrl), course: r.course?.title, link: `https://learn.rajeevshivah.me/r/${r.slug}` })));
+      views: r.views, downloads: r.downloads, hasPdf: Boolean(r.pdfUrl), pdfUrl: r.pdfUrl || undefined, course: r.course?.title, link: `https://learn.rajeevshivah.me/r/${r.slug}` })));
   tool('create_roadmap', 'write', 'Create a roadmap page (then upload its PDF).',
     { title: z.string(), description: z.string().optional(), courseId: zId('course').optional() },
     ({ title, description, courseId }) => api('POST', 'roadmaps', { body: { title, description, course: courseId || null } }));
@@ -643,6 +643,8 @@ export function buildServer({ api, fileForm }) {
     ({ roadmapId, courseId, ...a }) => api('PUT', `roadmaps/${roadmapId}`, { body: { ...a, ...(courseId !== undefined ? { course: courseId } : {}) } }));
   tool('upload_roadmap_pdf', 'write', 'Upload/replace a roadmap PDF from this computer.', { roadmapId: zId('roadmap'), filePath: zFile },
     async ({ roadmapId, filePath }) => { const { fd } = await fileForm(filePath); return api('POST', `roadmaps/${roadmapId}/pdf`, { form: fd }); });
+  tool('check_file_downloads', 'read', 'Check that every public file (roadmap PDFs and lesson files) can actually be downloaded by students. Reports files Cloudinary is blocking (401) with the one-time fix, and any other broken links. Run this after uploading a PDF, or when a student says a download is empty.',
+    {}, () => api('GET', 'roadmaps/check-files'));
   tool('delete_roadmap', 'destructive', 'Delete a roadmap page and its PDF.', { roadmapId: zId('roadmap') }, ({ roadmapId }) => api('DELETE', `roadmaps/${roadmapId}`));
 
   tool('list_promotions', 'read', 'Promotions shown on roadmap pages.', {}, () => api('GET', 'promotions'));
